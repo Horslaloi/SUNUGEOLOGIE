@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sonugéologie — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sand:#EFE7D8;
+    --sand-deep:#E4D9C3;
+    --basalt:#24262B;
+    --basalt-soft:#3B3E46;
+    --laterite:#B5502E;
+    --laterite-deep:#8C3A20;
+    --malachite:#2F6E5B;
+    --malachite-soft:#DCEAE4;
+    --mica:#C9A227;
+    --schist:#6B6F76;
+    --paper:#FBF8F2;
+    --line:#D9CDB4;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 15% 10%, rgba(181,80,46,0.10), transparent 45%),
+      radial-gradient(circle at 85% 90%, rgba(47,110,91,0.12), transparent 50%),
+      var(--sand);
+    min-height:100vh;
+    font-family:'Inter', sans-serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:36px 16px 60px;
+    color:var(--basalt);
+  }
+
+  .stage-header{ text-align:center; max-width:420px; margin-bottom:26px; }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--laterite-deep);
+    display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:10px;
+  }
+  .eyebrow::before, .eyebrow::after{ content:""; width:22px; height:1px; background:var(--laterite-deep); opacity:0.5; }
+  .stage-header h1{ font-family:'Fraunces', serif; font-weight:600; font-size:26px; margin:0 0 8px; letter-spacing:-0.01em; }
+  .stage-header p{ font-size:13.5px; color:var(--schist); line-height:1.5; margin:0; }
+
+  .phone{
+    width:375px; max-width:92vw; height:780px;
+    background:var(--paper); border-radius:44px; border:10px solid var(--basalt);
+    box-shadow: 0 30px 60px -20px rgba(36,38,43,0.45), 0 2px 0 rgba(0,0,0,0.05);
+    position:relative; overflow:hidden; display:flex; flex-direction:column;
+  }
+  .notch{ position:absolute; top:10px; left:50%; transform:translateX(-50%); width:120px; height:22px; background:var(--basalt); border-radius:0 0 16px 16px; z-index:30; }
+  .statusbar{ height:40px; display:flex; align-items:flex-end; justify-content:space-between; padding:0 22px 6px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--basalt); flex-shrink:0; }
+
+  .screen{ flex:1; overflow-y:auto; padding:4px 18px 18px; display:none; position:relative; }
+  .screen.active{display:block;}
+  .screen::-webkit-scrollbar{display:none;}
+
+  .app-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .app-header .greet{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--schist); }
+  .app-header h2{ font-family:'Fraunces', serif; font-size:21px; font-weight:600; margin:2px 0 0; }
+  .avatar{ width:34px; height:34px; border-radius:50%; background:var(--malachite); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Fraunces', serif; font-weight:600; font-size:13px; flex-shrink:0; }
+
+  .strata-card{ background:var(--basalt); border-radius:18px; padding:16px 16px 14px; margin-bottom:18px; color:#fff; position:relative; overflow:hidden; }
+  .strata-card .label-row{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+  .strata-card .label-row span:first-child{ font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#C7C9CE; }
+  .strata-card .label-row span:last-child{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--mica); }
+  .strata-stack{ display:flex; flex-direction:column-reverse; gap:3px; height:46px; }
+  .strata-band{ border-radius:3px; flex:1; }
+  .strata-band.filled.c1{background:var(--laterite);}
+  .strata-band.filled.c2{background:var(--mica);}
+  .strata-band.filled.c3{background:var(--schist);}
+  .strata-band.filled.c4{background:var(--malachite);}
+  .strata-band.filled.c5{background:var(--basalt-soft);}
+  .strata-band.empty{background:rgba(255,255,255,0.08); border:1px dashed rgba(255,255,255,0.18);}
+
+  .section-title{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--schist); margin:18px 0 10px; }
+
+  .chapter{ display:flex; gap:12px; align-items:center; background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:12px 12px; margin-bottom:10px; cursor:pointer; transition:transform .15s ease; }
+  .chapter:active{transform:scale(0.98);}
+  .chapter .swatch{ width:38px; height:38px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .chapter .swatch svg{width:20px;height:20px;}
+  .chapter .meta{flex:1; min-width:0;}
+  .chapter .meta h4{ font-family:'Fraunces', serif; font-weight:600; font-size:14.5px; margin:0 0 3px; }
+  .chapter .meta p{ font-size:11.5px; color:var(--schist); margin:0; }
+  .chapter .pct{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--schist); flex-shrink:0; }
+
+  .btn{ font-family:'Inter', sans-serif; font-weight:600; font-size:13.5px; border:none; border-radius:12px; padding:13px 16px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; width:100%; }
+  .btn-primary{background:var(--basalt); color:#fff;}
+  .btn-outline{background:transparent; color:var(--basalt); border:1.4px solid var(--basalt);}
+
+  .back-row{ display:flex; align-items:center; gap:8px; margin-bottom:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--schist); cursor:pointer; }
+  .lesson-hero{ height:150px; border-radius:16px; position:relative; margin-bottom:14px; display:flex; align-items:flex-end; padding:14px; }
+  .lesson-hero span{ color:#fff; font-family:'Fraunces', serif; font-weight:600; font-size:17px; }
+  .badge-3d{ position:absolute; top:12px; right:12px; background:rgba(255,255,255,0.92); color:var(--basalt); font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.06em; padding:5px 9px; border-radius:20px; }
+  .lesson-body p{ font-size:13.5px; line-height:1.65; color:var(--basalt-soft); margin:0 0 14px; }
+  .action-row{display:flex; gap:10px; margin-bottom:16px;}
+  .action-row .btn{font-size:12.5px; padding:12px 10px;}
+
+  .quiz-mini{ background:var(--malachite-soft); border-radius:14px; padding:14px; margin-top:4px; cursor:pointer; }
+  .quiz-mini h4{ font-family:'Fraunces', serif; font-size:14px; margin:0 0 8px; color:var(--malachite); }
+  .quiz-mini p{font-size:12.5px; color:var(--basalt-soft); margin:0 0 10px;}
+
+  .streak-pill{ display:inline-flex; align-items:center; gap:6px; background:var(--basalt); color:#fff; font-family:'IBM Plex Mono', monospace; font-size:11px; padding:6px 12px; border-radius:20px; margin-bottom:16px; }
+  .streak-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--mica);}
+  .question-card{ background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:18px 16px; }
+  .qnum{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--schist); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:8px; }
+  .question-card h3{ font-family:'Fraunces', serif; font-weight:600; font-size:16.5px; line-height:1.35; margin:0 0 16px; }
+  .option{ border:1.4px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:9px; font-size:13.5px; cursor:pointer; display:flex; align-items:center; gap:10px; transition: all .15s ease; }
+  .option .letter{ width:22px; height:22px; border-radius:50%; border:1.4px solid var(--line); display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono', monospace; font-size:11px; flex-shrink:0; }
+  .option.correct{background:var(--malachite-soft); border-color:var(--malachite);}
+  .option.correct .letter{background:var(--malachite); border-color:var(--malachite); color:#fff;}
+  .option.wrong{background:#F6E4DD; border-color:var(--laterite);}
+  .option.wrong .letter{background:var(--laterite); border-color:var(--laterite); color:#fff;}
+  .feedback{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--malachite); margin:12px 0 4px; display:none; line-height:1.5; }
+  .next-btn{ margin-top:14px; display:none; }
+
+  .result-card{ text-align:center; padding:30px 10px; }
+  .result-card .score{ font-family:'Fraunces', serif; font-size:42px; font-weight:700; color:var(--malachite); }
+  .result-card .sub{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--schist); margin:6px 0 22px; text-transform:uppercase; letter-spacing:0.06em; }
+
+  .class-row{ display:flex; justify-content:space-between; align-items:center; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:11px 13px; margin-bottom:8px; cursor:pointer; }
+  .class-row .name{font-size:13px; font-weight:600;}
+  .class-row .sub-line{font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--schist); margin-top:2px;}
+  .class-row .bar-bg{ width:88px; height:6px; background:var(--sand-deep); border-radius:4px; overflow:hidden; }
+  .class-row .bar-fill{height:100%; background:var(--malachite); border-radius:4px;}
+< truncated lines 131-482 >
+  }
+}
+function pauseVideoTimer(){
+  videoPlaying = false;
+  clearInterval(videoTimer);
+  document.getElementById('video-icon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+}
+function updateVideoUI(){
+  var pct = (videoElapsed / videoDuration) * 100;
+  document.getElementById('video-bar').style.width = pct + '%';
+  var m = Math.floor(videoElapsed/60), s = videoElapsed%60;
+  document.getElementById('video-elapsed').textContent = m + ':' + (s<10?'0':'')+s;
+}
+
+/* ---------- Quiz ---------- */
+var quizQuestions = [
+  { q:"Quelle roche se forme par le refroidissement rapide du magma en surface ?", options:["Le granite","Le basalte","Le calcaire","Le grès"], correct:1, exp:"Le basalte refroidit vite en surface, ce qui donne des cristaux très fins." },
+  { q:"Comment appelle-t-on les couches successives d'une roche sédimentaire ?", options:["Des filons","Des strates","Des failles","Des cristaux"], correct:1, exp:"Les strates résultent de dépôts successifs accumulés au fil du temps." },
+  { q:"Le schiste est un exemple de roche…", options:["Sédimentaire","Magmatique","Métamorphique","Volcanique"], correct:2, exp:"Le schiste se forme par transformation d'une roche sous l'effet de la chaleur et de la pression." },
+  { q:"Que provoquent surtout les mouvements aux frontières des plaques tectoniques ?", options:["Des marées","Des séismes et volcans","De la pluie","Des nuages"], correct:1, exp:"Les frontières de plaques concentrent l'essentiel de l'activité sismique et volcanique." },
+  { q:"Lequel de ces éléments n'est pas un agent d'érosion ?", options:["Le vent","L'eau","La gravité","La photosynthèse"], correct:3, exp:"La photosynthèse est un processus biologique, pas un agent d'érosion physique." },
+  { q:"Le granite est une roche…", options:["Volcanique","Plutonique","Sédimentaire","Métamorphique"], correct:1, exp:"Le granite se forme en profondeur par refroidissement lent : c'est une roche plutonique." }
+];
+var qIndex = 0, qScore = 0;
+
+function renderQuestion(){
+  var item = quizQuestions[qIndex];
+  document.getElementById('q-index').textContent = 'Question ' + (qIndex+1) + ' / ' + quizQuestions.length;
+  document.getElementById('q-text').textContent = item.q;
+  var letters = ['A','B','C','D'];
+  var html = '';
+  item.options.forEach(function(opt, i){
+    html += '<div class="option" onclick="answer(this,'+i+')"><span class="letter">'+letters[i]+'</span> '+opt+'</div>';
+  });
+  document.getElementById('q-options').innerHTML = html;
+  document.getElementById('quiz-feedback').style.display = 'none';
+  document.getElementById('next-btn').style.display = 'none';
+  document.getElementById('streak-count').textContent = qScore;
+}
+
+function answer(el, i){
+  var item = quizQuestions[qIndex];
+  var opts = document.querySelectorAll('#q-options .option');
+  opts.forEach(function(o){ o.style.pointerEvents = 'none'; });
+  if(i === item.correct){
+    el.classList.add('correct');
+    qScore += 1;
+  } else {
+    el.classList.add('wrong');
+    opts[item.correct].classList.add('correct');
+  }
+  var fb = document.getElementById('quiz-feedback');
+  fb.textContent = (i === item.correct ? '✓ Exact — ' : '✕ Presque — ') + item.exp;
+  fb.style.display = 'block';
+  document.getElementById('streak-count').textContent = qScore;
+  document.getElementById('next-btn').style.display = 'flex';
+  document.getElementById('next-btn').textContent = (qIndex === quizQuestions.length-1) ? 'Voir le résultat →' : 'Question suivante →';
+}
+
+function nextQuestion(){
+  qIndex += 1;
+  if(qIndex >= quizQuestions.length){
+    document.getElementById('quiz-active').style.display = 'none';
+    document.getElementById('quiz-result').style.display = 'block';
+    document.getElementById('final-score').textContent = qScore + '/' + quizQuestions.length;
+  } else {
+    renderQuestion();
+  }
+}
+
+function restartQuiz(){
+  qIndex = 0; qScore = 0;
+  document.getElementById('quiz-active').style.display = 'block';
+  document.getElementById('quiz-result').style.display = 'none';
+  renderQuestion();
+}
+renderQuestion();
+
+/* ---------- Suivi / profils élèves ---------- */
+var students = {
+  aissatou: { name:"Aïssatou B.", initials:"AB", classe:"3eB", last:"aujourd'hui", avg:92, quizAvg:88,
+    chapters:{ sed:95, mag:90, met:88, proc:93, tect:94 } },
+  moussa: { name:"Moussa K.", initials:"MK", classe:"3eB", last:"hier", avg:78, quizAvg:74,
+    chapters:{ sed:85, mag:80, met:70, proc:75, tect:80 } },
+  fatou: { name:"Fatou D.", initials:"FD", classe:"3eB", last:"il y a 2 jours", avg:64, quizAvg:61,
+    chapters:{ sed:72, mag:65, met:55, proc:60, tect:68 } },
+  ibrahima: { name:"Ibrahima S.", initials:"IS", classe:"3eB", last:"il y a 4 jours", avg:41, quizAvg:38,
+    chapters:{ sed:50, mag:40, met:30, proc:45, tect:38 } },
+  khady: { name:"Khady F.", initials:"KF", classe:"3eB", last:"il y a 1 semaine", avg:23, quizAvg:20,
+    chapters:{ sed:30, mag:20, met:15, proc:25, tect:22 } }
+};
+var studentOrder = ["aissatou","moussa","fatou","ibrahima","khady"];
+
+function renderStudentList(){
+  var html = '';
+  studentOrder.forEach(function(key){
+    var s = students[key];
+    html += '<div class="class-row" onclick="openProfile(\''+key+'\')">'+
+      '<span class="name">'+s.name+'</span>'+
+      '<div class="bar-bg"><div class="bar-fill" style="width:'+s.avg+'%"></div></div>'+
+      '<span class="val">'+s.avg+'%</span></div>';
+  });
+  document.getElementById('student-list').innerHTML = html;
+}
+renderStudentList();
+
+function openProfile(key){
+  var s = students[key];
+  document.getElementById('profile-avatar').textContent = s.initials;
+  document.getElementById('profile-name').textContent = s.name;
+  document.getElementById('profile-meta').textContent = s.classe + ' · dernière activité ' + s.last;
+  document.getElementById('profile-avg').textContent = s.avg + '%';
+  document.getElementById('profile-quiz').textContent = s.quizAvg + '%';
+
+  var html = '';
+  chapterOrder.forEach(function(ckey){
+    var c = chapters[ckey];
+    var val = s.chapters[ckey];
+    html += '<div class="chapter" style="cursor:default">'+
+      '<div class="swatch" style="background:'+c.color+'"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8">'+c.icon+'</svg></div>'+
+      '<div class="meta"><h4>'+c.title+'</h4></div>'+
+      '<div class="pct">'+val+'%</div></div>';
+  });
+  document.getElementById('profile-chapters').innerHTML = html;
+  showScreen('profile');
+}
+</script>
+
+</body>
+</html>
