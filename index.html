@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -274,15 +273,24 @@ function renderAuthScreen(errorMsg) {
       <div class="tabs" id="role-tabs">
         <button class="tab-btn ${authRole === 'eleve' ? 'active' : ''}" data-role="eleve">Élève</button>
         <button class="tab-btn ${authRole === 'enseignant' ? 'active' : ''}" data-role="enseignant">Enseignant</button>
+        <button class="tab-btn ${authRole === 'entreprise' ? 'active' : ''}" data-role="entreprise">Entreprise</button>
       </div>
 
-      ${authMode === "register" ? `
+      ${authMode === "register" && authRole !== "entreprise" ? `
         <label class="field-label">Nom complet</label>
         <input class="field" id="in-name" placeholder="Ex. Aïssatou Ba" />
       ` : ""}
       ${authMode === "register" && authRole === "eleve" ? `
         <label class="field-label">Établissement</label>
         <input class="field" id="in-etab" placeholder="Ex. CEM Kédougou" />
+      ` : ""}
+      ${authMode === "register" && authRole === "entreprise" ? `
+        <label class="field-label">Nom de l'entreprise</label>
+        <input class="field" id="in-company" placeholder="Ex. Sénégal Mines SA" />
+        <label class="field-label">Nom du représentant</label>
+        <input class="field" id="in-name" placeholder="Ex. Ousmane Diop" />
+        <label class="field-label">Secteur d'activité</label>
+        <input class="field" id="in-sector" placeholder="Ex. Exploitation minière" />
       ` : ""}
 
       <label class="field-label">E-mail</label>
@@ -321,15 +329,22 @@ async function submitAuth() {
 
   try {
     if (authMode === "register") {
-      const name = document.getElementById('in-name').value.trim();
       const etab = authRole === "eleve" ? document.getElementById('in-etab').value.trim() : "";
-      if (!name) throw new Error("Merci d'indiquer ton nom.");
+      const company = authRole === "entreprise" ? document.getElementById('in-company').value.trim() : "";
+      const sector = authRole === "entreprise" ? document.getElementById('in-sector').value.trim() : "";
+      const name = document.getElementById('in-name').value.trim();
+
+      if (!name) throw new Error(authRole === "entreprise" ? "Merci d'indiquer le nom du représentant." : "Merci d'indiquer ton nom.");
       if (authRole === "eleve" && !etab) throw new Error("Merci d'indiquer ton établissement.");
+      if (authRole === "entreprise" && !company) throw new Error("Merci d'indiquer le nom de l'entreprise.");
 
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
       const uid = cred.user.uid;
+      // Note sécurité : "role" est limité côté serveur (règles Firestore) à eleve/enseignant/entreprise.
+      // Un compte "admin" ne peut jamais être créé depuis ce formulaire public.
       const profile = {
-        uid, name, role: authRole, etab: etab || null,
+        uid, name, role: authRole,
+        etab: etab || null, company: company || null, sector: sector || null,
         scores: {}, joined: new Date().toISOString(), lastActive: new Date().toISOString()
       };
       await db.collection("users").doc(uid).set(profile);
@@ -573,6 +588,63 @@ async function renderProfile(uid) {
   `;
 }
 
+/* ============ ÉCRAN ADMINISTRATEUR (base — enrichi en Phase 2/3) ============ */
+async function renderAdmin() {
+  const usersSnap = await db.collection("users").get();
+  const all = usersSnap.docs.map(d => d.data());
+  const counts = { eleve: 0, enseignant: 0, entreprise: 0, admin: 0 };
+  all.forEach(u => { if (counts[u.role] !== undefined) counts[u.role]++; });
+
+  render(`
+    <div class="screen active">
+      <div class="app-header">
+        <div><div class="greet">Back-office</div><h2 class="h2">Administration</h2></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="stat-num">${counts.eleve}</div><div class="stat-label">Élèves</div></div>
+        <div class="stat-box"><div class="stat-num">${counts.enseignant}</div><div class="stat-label">Enseignants</div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="stat-num">${counts.entreprise}</div><div class="stat-label">Entreprises</div></div>
+        <div class="stat-box"><div class="stat-num">${counts.admin}</div><div class="stat-label">Admins</div></div>
+      </div>
+      <div class="section-title">Prochainement dans cet espace</div>
+      <div class="quiz-mini" style="cursor:default;">
+        <p style="font-size:12.5px; color:var(--basalt-soft); margin:0; line-height:1.6;">
+          Gestion des utilisateurs (recherche, filtres, désactivation/suppression), gestion des cours (matières → thèmes → documents), invitations et promotion de la plateforme — arrivent dans les prochaines phases.
+        </p>
+      </div>
+    </div>
+    ${footerHtml()}
+  `);
+  attachFooter();
+}
+
+/* ============ ÉCRAN ENTREPRISE (base — enrichi ultérieurement) ============ */
+function renderCompany() {
+  render(`
+    <div class="screen active">
+      <div class="app-header">
+        <div><div class="greet">Espace</div><h2 class="h2">${currentProfile.company || 'Entreprise'}</h2></div>
+      </div>
+      <div class="chapter-row" style="cursor:default;">
+        <div style="flex:1; min-width:0;">
+          <h4 class="chapter-title">Secteur d'activité</h4>
+          <p class="chapter-desc">${currentProfile.sector || 'Non renseigné'}</p>
+        </div>
+      </div>
+      <div class="section-title">Prochainement</div>
+      <div class="quiz-mini" style="cursor:default;">
+        <p style="font-size:12.5px; color:var(--basalt-soft); margin:0; line-height:1.6;">
+          Cet espace entreprise sera enrichi avec les fonctionnalités professionnelles prévues (tableau de bord citoyen, accès aux ressources dédiées, invitations).
+        </p>
+      </div>
+    </div>
+    ${footerHtml()}
+  `);
+  attachFooter();
+}
+
 /* ============ FOOTER (commun) ============ */
 function footerHtml() {
   return `<div class="footer-bar"><span>${currentProfile.name}</span><a id="logout-link">Déconnexion</a></div>`;
@@ -595,6 +667,10 @@ auth.onAuthStateChanged(async (user) => {
     currentProfile = doc.data();
     if (currentProfile.role === "enseignant") {
       renderTeacher();
+    } else if (currentProfile.role === "admin") {
+      renderAdmin();
+    } else if (currentProfile.role === "entreprise") {
+      renderCompany();
     } else {
       renderHome();
     }
