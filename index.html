@@ -3,259 +3,521 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sonugéologie — Prototype</title>
+<title>Sonugéologie</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK (compat, simple à utiliser sans build tools) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
 <style>
   :root{
-    --sand:#EFE7D8;
-    --sand-deep:#E4D9C3;
-    --basalt:#24262B;
-    --basalt-soft:#3B3E46;
-    --laterite:#B5502E;
-    --laterite-deep:#8C3A20;
-    --malachite:#2F6E5B;
-    --malachite-soft:#DCEAE4;
-    --mica:#C9A227;
-    --schist:#6B6F76;
-    --paper:#FBF8F2;
-    --line:#D9CDB4;
+    --sand:#EFE7D8; --sand-deep:#E4D9C3; --basalt:#24262B; --basalt-soft:#3B3E46;
+    --laterite:#B5502E; --laterite-deep:#8C3A20; --malachite:#2F6E5B; --malachite-soft:#DCEAE4;
+    --mica:#C9A227; --schist:#6B6F76; --paper:#FBF8F2; --line:#D9CDB4;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
   html,body{margin:0; padding:0;}
   body{
-    background:
-      radial-gradient(circle at 15% 10%, rgba(181,80,46,0.10), transparent 45%),
-      radial-gradient(circle at 85% 90%, rgba(47,110,91,0.12), transparent 50%),
-      var(--sand);
-    min-height:100vh;
-    font-family:'Inter', sans-serif;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    padding:36px 16px 60px;
-    color:var(--basalt);
+    background: radial-gradient(circle at 15% 10%, rgba(181,80,46,0.10), transparent 45%),
+      radial-gradient(circle at 85% 90%, rgba(47,110,91,0.12), transparent 50%), var(--sand);
+    min-height:100vh; font-family:'Inter', sans-serif;
+    display:flex; align-items:center; justify-content:center; padding:20px; color:var(--basalt);
   }
-
-  .stage-header{ text-align:center; max-width:420px; margin-bottom:26px; }
-  .eyebrow{
-    font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.14em;
-    text-transform:uppercase; color:var(--laterite-deep);
-    display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:10px;
-  }
-  .eyebrow::before, .eyebrow::after{ content:""; width:22px; height:1px; background:var(--laterite-deep); opacity:0.5; }
-  .stage-header h1{ font-family:'Fraunces', serif; font-weight:600; font-size:26px; margin:0 0 8px; letter-spacing:-0.01em; }
-  .stage-header p{ font-size:13.5px; color:var(--schist); line-height:1.5; margin:0; }
-
   .phone{
-    width:375px; max-width:92vw; height:780px;
-    background:var(--paper); border-radius:44px; border:10px solid var(--basalt);
-    box-shadow: 0 30px 60px -20px rgba(36,38,43,0.45), 0 2px 0 rgba(0,0,0,0.05);
-    position:relative; overflow:hidden; display:flex; flex-direction:column;
+    width:375px; max-width:94vw; min-height:640px; background:var(--paper);
+    border-radius:28px; border:10px solid var(--basalt);
+    box-shadow: 0 30px 60px -20px rgba(36,38,43,0.45);
+    overflow:hidden; display:flex; flex-direction:column; position:relative;
   }
-  .notch{ position:absolute; top:10px; left:50%; transform:translateX(-50%); width:120px; height:22px; background:var(--basalt); border-radius:0 0 16px 16px; z-index:30; }
-  .statusbar{ height:40px; display:flex; align-items:flex-end; justify-content:space-between; padding:0 22px 6px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--basalt); flex-shrink:0; }
-
-  .screen{ flex:1; overflow-y:auto; padding:4px 18px 18px; display:none; position:relative; }
+  .screen{ flex:1; overflow-y:auto; padding:20px 18px 18px; display:none; }
   .screen.active{display:block;}
-  .screen::-webkit-scrollbar{display:none;}
-
-  .app-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
-  .app-header .greet{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--schist); }
-  .app-header h2{ font-family:'Fraunces', serif; font-size:21px; font-weight:600; margin:2px 0 0; }
-  .avatar{ width:34px; height:34px; border-radius:50%; background:var(--malachite); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Fraunces', serif; font-weight:600; font-size:13px; flex-shrink:0; }
-
-  .strata-card{ background:var(--basalt); border-radius:18px; padding:16px 16px 14px; margin-bottom:18px; color:#fff; position:relative; overflow:hidden; }
-  .strata-card .label-row{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
-  .strata-card .label-row span:first-child{ font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#C7C9CE; }
-  .strata-card .label-row span:last-child{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--mica); }
-  .strata-stack{ display:flex; flex-direction:column-reverse; gap:3px; height:46px; }
-  .strata-band{ border-radius:3px; flex:1; }
-  .strata-band.filled.c1{background:var(--laterite);}
-  .strata-band.filled.c2{background:var(--mica);}
-  .strata-band.filled.c3{background:var(--schist);}
-  .strata-band.filled.c4{background:var(--malachite);}
-  .strata-band.filled.c5{background:var(--basalt-soft);}
-  .strata-band.empty{background:rgba(255,255,255,0.08); border:1px dashed rgba(255,255,255,0.18);}
-
-  .section-title{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--schist); margin:18px 0 10px; }
-
-  .chapter{ display:flex; gap:12px; align-items:center; background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:12px 12px; margin-bottom:10px; cursor:pointer; transition:transform .15s ease; }
-  .chapter:active{transform:scale(0.98);}
-  .chapter .swatch{ width:38px; height:38px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-  .chapter .swatch svg{width:20px;height:20px;}
-  .chapter .meta{flex:1; min-width:0;}
-  .chapter .meta h4{ font-family:'Fraunces', serif; font-weight:600; font-size:14.5px; margin:0 0 3px; }
-  .chapter .meta p{ font-size:11.5px; color:var(--schist); margin:0; }
-  .chapter .pct{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--schist); flex-shrink:0; }
-
+  .eyebrow{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--laterite-deep); margin-bottom:6px; }
+  h1.title{ font-family:'Fraunces', serif; font-weight:600; font-size:26px; margin:0 0 8px; }
+  .sub{ font-size:13.5px; color:var(--schist); margin:0; line-height:1.5; }
+  .tabs{ display:flex; gap:8px; margin:20px 0; }
+  .tab-btn{ flex:1; padding:12px 8px; border-radius:12px; border:1.4px solid var(--line); background:transparent; color:var(--basalt); font-family:'Inter',sans-serif; font-weight:600; font-size:13px; cursor:pointer; }
+  .tab-btn.active{ background:var(--basalt); color:#fff; border-color:var(--basalt); }
+  label.field-label{ display:block; font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--schist); margin:14px 0 6px; }
+  input.field{ width:100%; padding:12px 14px; border-radius:12px; border:1.4px solid var(--line); font-size:14px; font-family:'Inter',sans-serif; background:#fff; }
   .btn{ font-family:'Inter', sans-serif; font-weight:600; font-size:13.5px; border:none; border-radius:12px; padding:13px 16px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; width:100%; }
   .btn-primary{background:var(--basalt); color:#fff;}
-  .btn-outline{background:transparent; color:var(--basalt); border:1.4px solid var(--basalt);}
+  .btn-primary:disabled{opacity:0.5; cursor:default;}
+  .error-msg{ color:var(--laterite); font-size:12.5px; margin-top:8px; min-height:16px; }
+  .link-btn{ background:none; border:none; color:var(--malachite); font-size:12.5px; cursor:pointer; text-decoration:underline; padding:0; margin-top:14px; display:block; width:100%; text-align:center; font-family:'Inter',sans-serif; }
+
+  .app-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+  .greet{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--schist); }
+  h2.h2{ font-family:'Fraunces', serif; font-size:21px; font-weight:600; margin:2px 0 0; }
+  .avatar{ width:34px; height:34px; border-radius:50%; background:var(--malachite); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Fraunces', serif; font-weight:600; font-size:13px; }
+
+  .strata-card{ background:var(--basalt); border-radius:18px; padding:16px; margin-bottom:18px; color:#fff; }
+  .strata-label-row{ display:flex; justify-content:space-between; margin-bottom:10px; }
+  .strata-stack{ display:flex; flex-direction:column-reverse; gap:3px; height:46px; }
+  .strata-band{ border-radius:3px; flex:1; }
+
+  .section-title{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--schist); margin:18px 0 10px; }
+  .chapter-row{ display:flex; gap:12px; align-items:center; background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:10px; cursor:pointer; }
+  .swatch{ width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .chapter-title{ font-family:'Fraunces', serif; font-weight:600; font-size:14.5px; margin:0 0 3px; }
+  .chapter-desc{ font-size:11.5px; color:var(--schist); margin:0; }
+  .chapter-pct{ font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--schist); }
 
   .back-row{ display:flex; align-items:center; gap:8px; margin-bottom:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--schist); cursor:pointer; }
-  .lesson-hero{ height:150px; border-radius:16px; position:relative; margin-bottom:14px; display:flex; align-items:flex-end; padding:14px; }
+  .lesson-hero{ height:140px; border-radius:16px; margin-bottom:14px; display:flex; align-items:flex-end; padding:14px; }
   .lesson-hero span{ color:#fff; font-family:'Fraunces', serif; font-weight:600; font-size:17px; }
-  .badge-3d{ position:absolute; top:12px; right:12px; background:rgba(255,255,255,0.92); color:var(--basalt); font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.06em; padding:5px 9px; border-radius:20px; }
-  .lesson-body p{ font-size:13.5px; line-height:1.65; color:var(--basalt-soft); margin:0 0 14px; }
-  .action-row{display:flex; gap:10px; margin-bottom:16px;}
-  .action-row .btn{font-size:12.5px; padding:12px 10px;}
-
   .quiz-mini{ background:var(--malachite-soft); border-radius:14px; padding:14px; margin-top:4px; cursor:pointer; }
-  .quiz-mini h4{ font-family:'Fraunces', serif; font-size:14px; margin:0 0 8px; color:var(--malachite); }
-  .quiz-mini p{font-size:12.5px; color:var(--basalt-soft); margin:0 0 10px;}
 
-  .streak-pill{ display:inline-flex; align-items:center; gap:6px; background:var(--basalt); color:#fff; font-family:'IBM Plex Mono', monospace; font-size:11px; padding:6px 12px; border-radius:20px; margin-bottom:16px; }
-  .streak-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--mica);}
-  .question-card{ background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:18px 16px; }
   .qnum{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--schist); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:8px; }
-  .question-card h3{ font-family:'Fraunces', serif; font-weight:600; font-size:16.5px; line-height:1.35; margin:0 0 16px; }
-  .option{ border:1.4px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:9px; font-size:13.5px; cursor:pointer; display:flex; align-items:center; gap:10px; transition: all .15s ease; }
+  .question-card{ background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:18px 16px; }
+  .qtext{ font-family:'Fraunces', serif; font-weight:600; font-size:16.5px; line-height:1.35; margin:0 0 16px; }
+  .option{ border:1.4px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:9px; font-size:13.5px; cursor:pointer; display:flex; align-items:center; gap:10px; }
   .option .letter{ width:22px; height:22px; border-radius:50%; border:1.4px solid var(--line); display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Mono', monospace; font-size:11px; flex-shrink:0; }
   .option.correct{background:var(--malachite-soft); border-color:var(--malachite);}
   .option.correct .letter{background:var(--malachite); border-color:var(--malachite); color:#fff;}
   .option.wrong{background:#F6E4DD; border-color:var(--laterite);}
   .option.wrong .letter{background:var(--laterite); border-color:var(--laterite); color:#fff;}
-  .feedback{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--malachite); margin:12px 0 4px; display:none; line-height:1.5; }
-  .next-btn{ margin-top:14px; display:none; }
+  .feedback{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--malachite); margin:12px 0 4px; line-height:1.5; }
 
   .result-card{ text-align:center; padding:30px 10px; }
-  .result-card .score{ font-family:'Fraunces', serif; font-size:42px; font-weight:700; color:var(--malachite); }
-  .result-card .sub{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--schist); margin:6px 0 22px; text-transform:uppercase; letter-spacing:0.06em; }
+  .result-score{ font-family:'Fraunces', serif; font-size:42px; font-weight:700; color:var(--malachite); }
+  .result-sub{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--schist); margin:6px 0 22px; text-transform:uppercase; letter-spacing:0.06em; }
+
+  .stat-row{ display:flex; gap:10px; margin-bottom:18px; }
+  .stat-box{ flex:1; background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px 12px; text-align:center; }
+  .stat-num{ font-family:'Fraunces', serif; font-size:24px; font-weight:700; color:var(--malachite); }
+  .stat-label{ font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--schist); margin-top:2px; text-transform:uppercase; letter-spacing:0.05em; }
 
   .class-row{ display:flex; justify-content:space-between; align-items:center; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:11px 13px; margin-bottom:8px; cursor:pointer; }
-  .class-row .name{font-size:13px; font-weight:600;}
-  .class-row .sub-line{font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--schist); margin-top:2px;}
-  .class-row .bar-bg{ width:88px; height:6px; background:var(--sand-deep); border-radius:4px; overflow:hidden; }
-  .class-row .bar-fill{height:100%; background:var(--malachite); border-radius:4px;}
-< truncated lines 131-482 >
-  }
-}
-function pauseVideoTimer(){
-  videoPlaying = false;
-  clearInterval(videoTimer);
-  document.getElementById('video-icon').innerHTML = '<path d="M8 5v14l11-7z"/>';
-}
-function updateVideoUI(){
-  var pct = (videoElapsed / videoDuration) * 100;
-  document.getElementById('video-bar').style.width = pct + '%';
-  var m = Math.floor(videoElapsed/60), s = videoElapsed%60;
-  document.getElementById('video-elapsed').textContent = m + ':' + (s<10?'0':'')+s;
-}
+  .class-name{font-size:13px; font-weight:600;}
+  .class-sub{font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--schist); margin-top:2px;}
+  .bar-bg{ width:80px; height:6px; background:var(--sand-deep); border-radius:4px; overflow:hidden; margin:0 10px; }
+  .bar-fill{height:100%; background:var(--malachite); border-radius:4px;}
 
-/* ---------- Quiz ---------- */
-var quizQuestions = [
-  { q:"Quelle roche se forme par le refroidissement rapide du magma en surface ?", options:["Le granite","Le basalte","Le calcaire","Le grès"], correct:1, exp:"Le basalte refroidit vite en surface, ce qui donne des cristaux très fins." },
-  { q:"Comment appelle-t-on les couches successives d'une roche sédimentaire ?", options:["Des filons","Des strates","Des failles","Des cristaux"], correct:1, exp:"Les strates résultent de dépôts successifs accumulés au fil du temps." },
-  { q:"Le schiste est un exemple de roche…", options:["Sédimentaire","Magmatique","Métamorphique","Volcanique"], correct:2, exp:"Le schiste se forme par transformation d'une roche sous l'effet de la chaleur et de la pression." },
-  { q:"Que provoquent surtout les mouvements aux frontières des plaques tectoniques ?", options:["Des marées","Des séismes et volcans","De la pluie","Des nuages"], correct:1, exp:"Les frontières de plaques concentrent l'essentiel de l'activité sismique et volcanique." },
-  { q:"Lequel de ces éléments n'est pas un agent d'érosion ?", options:["Le vent","L'eau","La gravité","La photosynthèse"], correct:3, exp:"La photosynthèse est un processus biologique, pas un agent d'érosion physique." },
-  { q:"Le granite est une roche…", options:["Volcanique","Plutonique","Sédimentaire","Métamorphique"], correct:1, exp:"Le granite se forme en profondeur par refroidissement lent : c'est une roche plutonique." }
-];
-var qIndex = 0, qScore = 0;
+  .footer-bar{ display:flex; justify-content:space-between; padding:10px 18px; border-top:1px solid var(--line); font-size:11px; font-family:'IBM Plex Mono', monospace; color:var(--schist); }
+  .footer-bar a{ color:var(--laterite); cursor:pointer; text-decoration:none; }
+  .loading{ text-align:center; padding:40px 10px; font-size:12.5px; color:var(--schist); font-family:'IBM Plex Mono', monospace; }
+</style>
+</head>
+<body>
 
-function renderQuestion(){
-  var item = quizQuestions[qIndex];
-  document.getElementById('q-index').textContent = 'Question ' + (qIndex+1) + ' / ' + quizQuestions.length;
-  document.getElementById('q-text').textContent = item.q;
-  var letters = ['A','B','C','D'];
-  var html = '';
-  item.options.forEach(function(opt, i){
-    html += '<div class="option" onclick="answer(this,'+i+')"><span class="letter">'+letters[i]+'</span> '+opt+'</div>';
-  });
-  document.getElementById('q-options').innerHTML = html;
-  document.getElementById('quiz-feedback').style.display = 'none';
-  document.getElementById('next-btn').style.display = 'none';
-  document.getElementById('streak-count').textContent = qScore;
-}
+<div class="phone" id="phone">
+  <div class="screen active" id="loading-screen">
+    <div class="loading">Chargement…</div>
+  </div>
+</div>
 
-function answer(el, i){
-  var item = quizQuestions[qIndex];
-  var opts = document.querySelectorAll('#q-options .option');
-  opts.forEach(function(o){ o.style.pointerEvents = 'none'; });
-  if(i === item.correct){
-    el.classList.add('correct');
-    qScore += 1;
-  } else {
-    el.classList.add('wrong');
-    opts[item.correct].classList.add('correct');
-  }
-  var fb = document.getElementById('quiz-feedback');
-  fb.textContent = (i === item.correct ? '✓ Exact — ' : '✕ Presque — ') + item.exp;
-  fb.style.display = 'block';
-  document.getElementById('streak-count').textContent = qScore;
-  document.getElementById('next-btn').style.display = 'flex';
-  document.getElementById('next-btn').textContent = (qIndex === quizQuestions.length-1) ? 'Voir le résultat →' : 'Question suivante →';
-}
-
-function nextQuestion(){
-  qIndex += 1;
-  if(qIndex >= quizQuestions.length){
-    document.getElementById('quiz-active').style.display = 'none';
-    document.getElementById('quiz-result').style.display = 'block';
-    document.getElementById('final-score').textContent = qScore + '/' + quizQuestions.length;
-  } else {
-    renderQuestion();
-  }
-}
-
-function restartQuiz(){
-  qIndex = 0; qScore = 0;
-  document.getElementById('quiz-active').style.display = 'block';
-  document.getElementById('quiz-result').style.display = 'none';
-  renderQuestion();
-}
-renderQuestion();
-
-/* ---------- Suivi / profils élèves ---------- */
-var students = {
-  aissatou: { name:"Aïssatou B.", initials:"AB", classe:"3eB", last:"aujourd'hui", avg:92, quizAvg:88,
-    chapters:{ sed:95, mag:90, met:88, proc:93, tect:94 } },
-  moussa: { name:"Moussa K.", initials:"MK", classe:"3eB", last:"hier", avg:78, quizAvg:74,
-    chapters:{ sed:85, mag:80, met:70, proc:75, tect:80 } },
-  fatou: { name:"Fatou D.", initials:"FD", classe:"3eB", last:"il y a 2 jours", avg:64, quizAvg:61,
-    chapters:{ sed:72, mag:65, met:55, proc:60, tect:68 } },
-  ibrahima: { name:"Ibrahima S.", initials:"IS", classe:"3eB", last:"il y a 4 jours", avg:41, quizAvg:38,
-    chapters:{ sed:50, mag:40, met:30, proc:45, tect:38 } },
-  khady: { name:"Khady F.", initials:"KF", classe:"3eB", last:"il y a 1 semaine", avg:23, quizAvg:20,
-    chapters:{ sed:30, mag:20, met:15, proc:25, tect:22 } }
+<script>
+/* ============ CONFIG FIREBASE ============ */
+const firebaseConfig = {
+  apiKey: "AIzaSyAcuUlX-CupEeKaYxJ0ayq85xhCL_D8S5M",
+  authDomain: "sunugeologie-21cd9.firebaseapp.com",
+  projectId: "sunugeologie-21cd9",
+  storageBucket: "sunugeologie-21cd9.firebasestorage.app",
+  messagingSenderId: "848476645831",
+  appId: "1:848476645831:web:de8dbe97b8c6c8b76e91e2",
+  measurementId: "G-2SDRETCCH3"
 };
-var studentOrder = ["aissatou","moussa","fatou","ibrahima","khady"];
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-function renderStudentList(){
-  var html = '';
-  studentOrder.forEach(function(key){
-    var s = students[key];
-    html += '<div class="class-row" onclick="openProfile(\''+key+'\')">'+
-      '<span class="name">'+s.name+'</span>'+
-      '<div class="bar-bg"><div class="bar-fill" style="width:'+s.avg+'%"></div></div>'+
-      '<span class="val">'+s.avg+'%</span></div>';
+/* ============ DONNÉES DE CONTENU ============ */
+const CHAPTERS = {
+  sed: { title: "Roches sédimentaires", color: "#B5502E", desc: "Dépôts, strates, fossiles" },
+  mag: { title: "Roches magmatiques", color: "#C9A227", desc: "Refroidissement du magma" },
+  met: { title: "Roches métamorphiques", color: "#6B6F76", desc: "Transformation sous pression" },
+  proc: { title: "Processus géologiques", color: "#2F6E5B", desc: "Érosion, sédimentation" },
+  tect: { title: "Tectonique des plaques", color: "#3B3E46", desc: "Séismes, volcans, dérive" }
+};
+const CHAPTER_ORDER = ["sed", "mag", "met", "proc", "tect"];
+
+const QUIZ_BANK = {
+  sed: [
+    { q:"Comment appelle-t-on les couches successives d'une roche sédimentaire ?", options:["Des filons","Des strates","Des failles","Des cristaux"], correct:1, exp:"Les strates résultent de dépôts successifs accumulés au fil du temps." },
+    { q:"Quel processus transforme un sédiment meuble en roche dure ?", options:["La diagenèse","La fusion","La subduction","L'érosion"], correct:0, exp:"La diagenèse compacte et cimente les sédiments en roche." },
+    { q:"Le calcaire se forme principalement à partir de :", options:["Lave refroidie","Débris organiques marins","Cristaux de quartz","Cendres volcaniques"], correct:1, exp:"Le calcaire provient souvent de coquilles et squelettes marins accumulés." }
+  ],
+  mag: [
+    { q:"Quelle roche se forme par refroidissement rapide du magma en surface ?", options:["Le granite","Le basalte","Le calcaire","Le grès"], correct:1, exp:"Le basalte refroidit vite en surface, ce qui donne des cristaux très fins." },
+    { q:"Le granite est une roche…", options:["Volcanique","Plutonique","Sédimentaire","Métamorphique"], correct:1, exp:"Le granite se forme en profondeur par refroidissement lent." },
+    { q:"Le magma qui atteint la surface est appelé :", options:["Lave","Basalte","Obsidienne","Cendre"], correct:0, exp:"On parle de lave une fois que le magma sort en surface." }
+  ],
+  met: [
+    { q:"Le schiste est un exemple de roche…", options:["Sédimentaire","Magmatique","Métamorphique","Volcanique"], correct:2, exp:"Le schiste se forme par transformation sous chaleur et pression." },
+    { q:"Le marbre provient de la transformation de :", options:["Calcaire","Granite","Basalte","Grès"], correct:0, exp:"Le marbre est du calcaire métamorphisé." },
+    { q:"Le métamorphisme se produit surtout à cause de :", options:["Chaleur et pression","Érosion","Photosynthèse","Précipitations"], correct:0, exp:"Chaleur et pression modifient la structure sans faire fondre la roche." }
+  ],
+  proc: [
+    { q:"Lequel n'est pas un agent d'érosion ?", options:["Le vent","L'eau","La gravité","La photosynthèse"], correct:3, exp:"La photosynthèse est un processus biologique, pas un agent d'érosion." },
+    { q:"Le transport de sédiments par un cours d'eau s'appelle :", options:["Sédimentation","Charriage","Diagenèse","Subduction"], correct:1, exp:"Le charriage désigne le déplacement de matériaux par un courant." },
+    { q:"L'accumulation de sédiments s'appelle :", options:["Érosion","Sédimentation","Fusion","Compaction"], correct:1, exp:"La sédimentation est le dépôt de matériaux transportés." }
+  ],
+  tect: [
+    { q:"Que provoquent surtout les mouvements aux frontières des plaques ?", options:["Des marées","Séismes et volcans","De la pluie","Des nuages"], correct:1, exp:"Les frontières de plaques concentrent l'activité sismique et volcanique." },
+    { q:"Une zone de subduction correspond à :", options:["Deux plaques qui s'écartent","Une plaque qui plonge sous une autre","Deux plaques qui glissent","Une plaque immobile"], correct:1, exp:"En subduction, une plaque plonge sous une autre." },
+    { q:"La dérive des continents a été proposée par :", options:["Charles Darwin","Alfred Wegener","Isaac Newton","Marie Curie"], correct:1, exp:"Alfred Wegener a formulé cette théorie en 1912." }
+  ]
+};
+
+/* ============ ÉTAT GLOBAL ============ */
+let currentUser = null;
+let currentProfile = null;
+let activeChapter = null;
+let quizState = { idx: 0, score: 0, answered: null };
+
+const phone = document.getElementById('phone');
+
+function render(html) { phone.innerHTML = html; }
+
+/* ============ ÉCRAN CONNEXION ============ */
+let authMode = "login";
+let authRole = "eleve";
+
+function renderAuthScreen(errorMsg) {
+  render(`
+    <div class="screen active">
+      <div style="text-align:center; margin-top:20px; margin-bottom:20px;">
+        <div class="eyebrow">Sonugéologie</div>
+        <h1 class="title">${authMode === "login" ? "Connexion" : "Créer un compte"}</h1>
+        <p class="sub">${authMode === "login" ? "Retrouve ta progression" : "Rejoins la plateforme"}</p>
+      </div>
+
+      <div class="tabs" id="role-tabs">
+        <button class="tab-btn ${authRole === 'eleve' ? 'active' : ''}" data-role="eleve">Élève</button>
+        <button class="tab-btn ${authRole === 'enseignant' ? 'active' : ''}" data-role="enseignant">Enseignant</button>
+      </div>
+
+      ${authMode === "register" ? `
+        <label class="field-label">Nom complet</label>
+        <input class="field" id="in-name" placeholder="Ex. Aïssatou Ba" />
+      ` : ""}
+      ${authMode === "register" && authRole === "eleve" ? `
+        <label class="field-label">Établissement</label>
+        <input class="field" id="in-etab" placeholder="Ex. CEM Kédougou" />
+      ` : ""}
+
+      <label class="field-label">E-mail</label>
+      <input class="field" id="in-email" type="email" placeholder="toi@exemple.com" />
+
+      <label class="field-label">Mot de passe</label>
+      <input class="field" id="in-pass" type="password" placeholder="6 caractères minimum" />
+
+      <div class="error-msg">${errorMsg || ""}</div>
+
+      <button class="btn btn-primary" id="submit-auth" style="margin-top:8px;">
+        ${authMode === "login" ? "Se connecter →" : "Créer mon compte →"}
+      </button>
+      <button class="link-btn" id="toggle-auth">
+        ${authMode === "login" ? "Pas encore de compte ? S'inscrire" : "Déjà un compte ? Se connecter"}
+      </button>
+    </div>
+  `);
+
+  document.querySelectorAll('#role-tabs .tab-btn').forEach(b => {
+    b.onclick = () => { authRole = b.dataset.role; renderAuthScreen(); };
   });
-  document.getElementById('student-list').innerHTML = html;
+  document.getElementById('toggle-auth').onclick = () => {
+    authMode = authMode === "login" ? "register" : "login";
+    renderAuthScreen();
+  };
+  document.getElementById('submit-auth').onclick = submitAuth;
 }
-renderStudentList();
 
-function openProfile(key){
-  var s = students[key];
-  document.getElementById('profile-avatar').textContent = s.initials;
-  document.getElementById('profile-name').textContent = s.name;
-  document.getElementById('profile-meta').textContent = s.classe + ' · dernière activité ' + s.last;
-  document.getElementById('profile-avg').textContent = s.avg + '%';
-  document.getElementById('profile-quiz').textContent = s.quizAvg + '%';
+async function submitAuth() {
+  const email = document.getElementById('in-email').value.trim();
+  const pass = document.getElementById('in-pass').value;
+  const btn = document.getElementById('submit-auth');
+  btn.disabled = true;
+  btn.textContent = "Patiente…";
 
-  var html = '';
-  chapterOrder.forEach(function(ckey){
-    var c = chapters[ckey];
-    var val = s.chapters[ckey];
-    html += '<div class="chapter" style="cursor:default">'+
-      '<div class="swatch" style="background:'+c.color+'"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8">'+c.icon+'</svg></div>'+
-      '<div class="meta"><h4>'+c.title+'</h4></div>'+
-      '<div class="pct">'+val+'%</div></div>';
+  try {
+    if (authMode === "register") {
+      const name = document.getElementById('in-name').value.trim();
+      const etab = authRole === "eleve" ? document.getElementById('in-etab').value.trim() : "";
+      if (!name) throw new Error("Merci d'indiquer ton nom.");
+      if (authRole === "eleve" && !etab) throw new Error("Merci d'indiquer ton établissement.");
+
+      const cred = await auth.createUserWithEmailAndPassword(email, pass);
+      const uid = cred.user.uid;
+      const profile = {
+        uid, name, role: authRole, etab: etab || null,
+        scores: {}, joined: new Date().toISOString(), lastActive: new Date().toISOString()
+      };
+      await db.collection("users").doc(uid).set(profile);
+    } else {
+      await auth.signInWithEmailAndPassword(email, pass);
+    }
+    // onAuthStateChanged prendra le relais
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = authMode === "login" ? "Se connecter →" : "Créer mon compte →";
+    renderAuthScreen(translateFirebaseError(e));
+  }
+}
+
+function translateFirebaseError(e) {
+  const msg = e.message || "";
+  if (msg.includes("email-already-in-use")) return "Cet e-mail est déjà utilisé.";
+  if (msg.includes("wrong-password") || msg.includes("invalid-credential")) return "E-mail ou mot de passe incorrect.";
+  if (msg.includes("user-not-found")) return "Aucun compte avec cet e-mail.";
+  if (msg.includes("weak-password")) return "Mot de passe trop court (6 caractères min).";
+  if (msg.includes("invalid-email")) return "Adresse e-mail invalide.";
+  return e.message || "Une erreur est survenue.";
+}
+
+/* ============ ÉCRAN ACCUEIL ÉLÈVE ============ */
+function renderHome() {
+  const filled = CHAPTER_ORDER.filter(k => (currentProfile.scores[k] || 0) > 0).length;
+  const initials = currentProfile.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+  render(`
+    <div class="screen active">
+      <div class="app-header">
+        <div><div class="greet">Bonjour</div><h2 class="h2">${currentProfile.name.split(" ")[0]}</h2></div>
+        <div class="avatar">${initials}</div>
+      </div>
+      <div class="strata-card">
+        <div class="strata-label-row">
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#C7C9CE;">Progression</span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:#C9A227;">${filled}/${CHAPTER_ORDER.length} chapitres</span>
+        </div>
+        <div class="strata-stack">
+          ${CHAPTER_ORDER.map(k => `<div class="strata-band" style="background:${(currentProfile.scores[k]||0)>0 ? CHAPTERS[k].color : 'rgba(255,255,255,0.08)'}; ${(currentProfile.scores[k]||0)>0?'':'border:1px dashed rgba(255,255,255,0.18);'}"></div>`).join('')}
+        </div>
+      </div>
+      <div class="section-title">Chapitres</div>
+      ${CHAPTER_ORDER.map(k => {
+        const c = CHAPTERS[k]; const score = currentProfile.scores[k];
+        return `<div class="chapter-row" data-chapter="${k}">
+          <div class="swatch" style="background:${c.color}"></div>
+          <div style="flex:1; min-width:0;"><h4 class="chapter-title">${c.title}</h4><p class="chapter-desc">${c.desc}</p></div>
+          <div class="chapter-pct">${score !== undefined ? score+'%' : '—'}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    ${footerHtml()}
+  `);
+  document.querySelectorAll('.chapter-row').forEach(el => {
+    el.onclick = () => { activeChapter = el.dataset.chapter; renderLesson(); };
   });
-  document.getElementById('profile-chapters').innerHTML = html;
-  showScreen('profile');
+  attachFooter();
 }
+
+/* ============ ÉCRAN LEÇON ============ */
+function renderLesson() {
+  const c = CHAPTERS[activeChapter];
+  render(`
+    <div class="screen active">
+      <div class="back-row" id="back-home">← Retour</div>
+      <div class="lesson-hero" style="background:${c.color}"><span>${c.title}</span></div>
+      <p style="font-size:13.5px; line-height:1.65; color:var(--basalt-soft);">
+        Ce chapitre couvre les notions essentielles sur ${c.title.toLowerCase()}. Explore les concepts clés, puis teste tes connaissances avec le quiz pour valider ta progression.
+      </p>
+      <div class="quiz-mini" id="start-quiz">
+        <h4 style="font-family:'Fraunces',serif; font-size:14px; margin:0 0 8px; color:var(--malachite);">Quiz — ${c.title}</h4>
+        <p style="font-size:12.5px; color:var(--basalt-soft); margin:0 0 10px;">${QUIZ_BANK[activeChapter].length} questions pour valider ce chapitre</p>
+        <button class="btn btn-primary">Commencer le quiz →</button>
+      </div>
+    </div>
+    ${footerHtml()}
+  `);
+  document.getElementById('back-home').onclick = renderHome;
+  document.getElementById('start-quiz').onclick = () => { quizState = { idx: 0, score: 0, answered: null }; renderQuiz(); };
+  attachFooter();
+}
+
+/* ============ ÉCRAN QUIZ ============ */
+function renderQuiz() {
+  const questions = QUIZ_BANK[activeChapter];
+  const item = questions[quizState.idx];
+  const letters = ["A", "B", "C", "D"];
+
+  render(`
+    <div class="screen active">
+      <div class="back-row" id="quit-quiz">← Quitter</div>
+      <div class="qnum">Question ${quizState.idx + 1} / ${questions.length}</div>
+      <div class="question-card">
+        <h3 class="qtext">${item.q}</h3>
+        <div id="options-wrap">
+          ${item.options.map((opt, i) => `<div class="option" data-i="${i}"><span class="letter">${letters[i]}</span> ${opt}</div>`).join('')}
+        </div>
+        <div id="feedback-wrap"></div>
+      </div>
+    </div>
+    ${footerHtml()}
+  `);
+  document.getElementById('quit-quiz').onclick = renderLesson;
+  document.querySelectorAll('#options-wrap .option').forEach(el => {
+    el.onclick = () => answerQuiz(parseInt(el.dataset.i));
+  });
+  attachFooter();
+}
+
+function answerQuiz(i) {
+  if (quizState.answered !== null) return;
+  const questions = QUIZ_BANK[activeChapter];
+  const item = questions[quizState.idx];
+  quizState.answered = i;
+  if (i === item.correct) quizState.score += 1;
+
+  document.querySelectorAll('#options-wrap .option').forEach((el, idx) => {
+    el.style.pointerEvents = "none";
+    if (idx === item.correct) el.classList.add('correct');
+    else if (idx === i) el.classList.add('wrong');
+  });
+
+  const isLast = quizState.idx + 1 === questions.length;
+  document.getElementById('feedback-wrap').innerHTML = `
+    <div class="feedback">${i === item.correct ? "✓ Exact — " : "✕ Presque — "}${item.exp}</div>
+    <button class="btn btn-primary" id="next-q" style="margin-top:14px;">${isLast ? "Voir le résultat →" : "Question suivante →"}</button>
+  `;
+  document.getElementById('next-q').onclick = () => {
+    if (isLast) finishQuiz();
+    else { quizState.idx += 1; quizState.answered = null; renderQuiz(); }
+  };
+}
+
+async function finishQuiz() {
+  const questions = QUIZ_BANK[activeChapter];
+  const pct = Math.round((quizState.score / questions.length) * 100);
+
+  currentProfile.scores[activeChapter] = pct;
+  currentProfile.lastActive = new Date().toISOString();
+  await db.collection("users").doc(currentUser.uid).update({
+    [`scores.${activeChapter}`]: pct,
+    lastActive: currentProfile.lastActive
+  });
+
+  render(`
+    <div class="screen active">
+      <div class="result-card">
+        <div class="result-score">${quizState.score}/${questions.length}</div>
+        <div class="result-sub">${pct}% de réussite — sauvegardé</div>
+        <button class="btn btn-primary" id="back-lesson">Retour au chapitre</button>
+      </div>
+    </div>
+    ${footerHtml()}
+  `);
+  document.getElementById('back-lesson').onclick = renderLesson;
+  attachFooter();
+}
+
+/* ============ ÉCRAN ENSEIGNANT ============ */
+async function renderTeacher() {
+  render(`
+    <div class="screen active">
+      <div class="app-header">
+        <div><div class="greet">Suivi</div><h2 class="h2">Tableau de bord</h2></div>
+        <button id="refresh-btn" style="border:none; background:transparent; cursor:pointer; font-size:18px;">↻</button>
+      </div>
+      <div id="stats-wrap"><div class="loading">Chargement des élèves…</div></div>
+    </div>
+    ${footerHtml()}
+  `);
+  document.getElementById('refresh-btn').onclick = loadTeacherData;
+  attachFooter();
+  loadTeacherData();
+}
+
+async function loadTeacherData() {
+  const snap = await db.collection("users").where("role", "==", "eleve").get();
+  const students = snap.docs.map(d => d.data());
+  const etabs = [...new Set(students.map(s => s.etab).filter(Boolean))];
+  const avg = (s) => {
+    const vals = Object.values(s.scores || {});
+    return vals.length ? Math.round(vals.reduce((a,b) => a+b, 0) / vals.length) : 0;
+  };
+
+  document.getElementById('stats-wrap').innerHTML = `
+    <div class="stat-row">
+      <div class="stat-box"><div class="stat-num">${students.length}</div><div class="stat-label">Élèves actifs</div></div>
+      <div class="stat-box"><div class="stat-num">${etabs.length}</div><div class="stat-label">Établissements</div></div>
+    </div>
+    <div class="section-title">Élèves</div>
+    ${students.length === 0 ? `<p style="font-size:12.5px; color:var(--schist);">Aucun élève n'est encore inscrit. Ils apparaîtront ici automatiquement.</p>` : ''}
+    ${students.map(s => `
+      <div class="class-row" data-uid="${s.uid}">
+        <div style="flex:1; min-width:0;">
+          <div class="class-name">${s.name}</div>
+          <div class="class-sub">${s.etab || '—'}</div>
+        </div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${avg(s)}%"></div></div>
+        <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--schist);">${avg(s)}%</span>
+      </div>
+    `).join('')}
+  `;
+  document.querySelectorAll('.class-row').forEach(el => {
+    el.onclick = () => renderProfile(el.dataset.uid);
+  });
+}
+
+async function renderProfile(uid) {
+  render(`
+    <div class="screen active">
+      <div class="back-row" id="back-teacher">← Retour</div>
+      <div id="profile-wrap"><div class="loading">Chargement…</div></div>
+    </div>
+    ${footerHtml()}
+  `);
+  document.getElementById('back-teacher').onclick = renderTeacher;
+  attachFooter();
+
+  const doc = await db.collection("users").doc(uid).get();
+  const s = doc.data();
+  const initials = s.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+  document.getElementById('profile-wrap').innerHTML = `
+    <div style="text-align:center; margin-bottom:20px;">
+      <div style="width:56px; height:56px; border-radius:50%; background:var(--malachite); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:600; font-size:20px; margin:0 auto 10px;">${initials}</div>
+      <h3 style="font-family:'Fraunces',serif; font-size:18px; margin:0 0 4px;">${s.name}</h3>
+      <p style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--schist); margin:0;">${s.etab || '—'}</p>
+    </div>
+    <div class="section-title">Résultats par chapitre</div>
+    ${CHAPTER_ORDER.map(k => {
+      const c = CHAPTERS[k]; const val = s.scores ? s.scores[k] : undefined;
+      return `<div class="chapter-row" style="cursor:default;">
+        <div class="swatch" style="background:${c.color}"></div>
+        <div style="flex:1; min-width:0;"><h4 class="chapter-title">${c.title}</h4></div>
+        <div class="chapter-pct">${val !== undefined ? val+'%' : 'Non fait'}</div>
+      </div>`;
+    }).join('')}
+  `;
+}
+
+/* ============ FOOTER (commun) ============ */
+function footerHtml() {
+  return `<div class="footer-bar"><span>${currentProfile.name}</span><a id="logout-link">Déconnexion</a></div>`;
+}
+function attachFooter() {
+  const el = document.getElementById('logout-link');
+  if (el) el.onclick = () => auth.signOut();
+}
+
+/* ============ OBSERVATEUR D'AUTHENTIFICATION ============ */
+auth.onAuthStateChanged(async (user) => {
+  if (user) {
+    currentUser = user;
+    const doc = await db.collection("users").doc(user.uid).get();
+    if (!doc.exists) {
+      // Cas rare : compte auth existe mais pas de profil Firestore
+      await auth.signOut();
+      return;
+    }
+    currentProfile = doc.data();
+    if (currentProfile.role === "enseignant") {
+      renderTeacher();
+    } else {
+      renderHome();
+    }
+  } else {
+    currentUser = null;
+    currentProfile = null;
+    renderAuthScreen();
+  }
+});
 </script>
-
 </body>
 </html>
