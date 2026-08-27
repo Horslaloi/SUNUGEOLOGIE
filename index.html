@@ -759,15 +759,8 @@ async function renderAdminCourses(subjectId, subjectName, themeId, themeName) {
         <option value="eleve">Élèves uniquement</option>
         <option value="enseignant">Enseignants uniquement</option>
       </select>
-      <select class="field" id="new-course-type" style="margin-bottom:8px;">
-        <option value="pdf">PDF</option>
-        <option value="docx">Word (.doc/.docx)</option>
-        <option value="pptx">PowerPoint (.ppt/.pptx)</option>
-      </select>
-      <input class="field" id="new-course-link" placeholder="Lien Google Drive (partage activé)" style="margin-bottom:10px;" />
-      <p style="font-size:11px; color:var(--schist); margin:0 0 10px; line-height:1.5;">
-        Sur Google Drive : clic droit sur le fichier → Partager → "Accessible à toute personne disposant du lien" → copier le lien ici.
-      </p>
+      <input type="file" id="new-course-file" accept=".pdf,.doc,.docx,.ppt,.pptx" style="margin-bottom:10px; font-size:12.5px; width:100%;" />
+      <div id="upload-progress-wrap" style="display:none;"><div class="progress-wrap"><div class="progress-fill" id="upload-progress-fill" style="width:0%;"></div></div></div>
       <div class="error-msg" id="course-error"></div>
       <button class="btn btn-primary" id="add-course">+ Ajouter le document</button>
     </div>
@@ -779,28 +772,64 @@ async function renderAdminCourses(subjectId, subjectName, themeId, themeName) {
   loadAdminCourses(subjectId, themeId);
 }
 
+/* Config Cloudinary — upload direct depuis le navigateur, sans clé secrète exposée */
+const CLOUDINARY_CLOUD_NAME = "vavphutl";
+const CLOUDINARY_UPLOAD_PRESET = "sunugeologie_docs";
+
 async function submitNewCourse(subjectId, themeId, subjectName, themeName) {
   const title = document.getElementById('new-course-title').value.trim();
   const desc = document.getElementById('new-course-desc').value.trim();
   const level = document.getElementById('new-course-level').value.trim();
   const visibility = document.getElementById('new-course-visibility').value;
-  const fileType = document.getElementById('new-course-type').value;
-  const link = document.getElementById('new-course-link').value.trim();
+  const fileInput = document.getElementById('new-course-file');
+  const file = fileInput.files[0];
   const errEl = document.getElementById('course-error');
   const btn = document.getElementById('add-course');
+  const progressWrap = document.getElementById('upload-progress-wrap');
+  const progressFill = document.getElementById('upload-progress-fill');
 
   if (!title) { errEl.textContent = "Merci d'indiquer un titre."; return; }
-  if (!link) { errEl.textContent = "Merci de coller un lien Google Drive."; return; }
-  if (!link.startsWith("http")) { errEl.textContent = "Le lien doit commencer par http:// ou https://"; return; }
+  if (!file) { errEl.textContent = "Merci de choisir un fichier."; return; }
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  const fileType = ext === 'pdf' ? 'pdf' : (ext === 'doc' || ext === 'docx') ? 'docx' : 'pptx';
 
   errEl.textContent = "";
   btn.disabled = true;
-  btn.textContent = "Ajout en cours…";
+  btn.textContent = "Envoi en cours…";
+  progressWrap.style.display = "block";
 
   try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    // resource_type "raw" est nécessaire pour les fichiers non-image (PDF, Word, PowerPoint)
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`;
+
+    const fileUrl = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", uploadUrl, true);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          progressFill.style.width = pct + '%';
+        }
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const data = JSON.parse(xhr.responseText);
+          resolve(data.secure_url);
+        } else {
+          reject(new Error("Échec de l'envoi (code " + xhr.status + ")"));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Erreur réseau pendant l'envoi."));
+      xhr.send(formData);
+    });
+
     await db.collection("subjects").doc(subjectId).collection("themes").doc(themeId).collection("courses").add({
       title, description: desc, level: level || null, visibility,
-      fileUrl: link, fileType,
+      fileUrl, fileType,
       createdBy: currentProfile.name, createdAt: new Date().toISOString()
     });
 
@@ -808,6 +837,7 @@ async function submitNewCourse(subjectId, themeId, subjectName, themeName) {
   } catch (e) {
     btn.disabled = false;
     btn.textContent = "+ Ajouter le document";
+    progressWrap.style.display = "none";
     errEl.textContent = "Erreur lors de l'envoi : " + e.message;
   }
 }
