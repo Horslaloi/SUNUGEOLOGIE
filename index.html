@@ -292,13 +292,85 @@ function renderAuthScreen(errorMsg) {
         <label class="field-label">Établissement</label>
         <input class="field" id="in-etab" placeholder="Ex. CEM Kédougou" />
       ` : ""}
+      ${authMode === "register" && authRole === "enseignant" ? `
+        <label class="field-label">Profession</label>
+        <select class="field" id="in-teacher-profession">
+          <option value="Enseignant">Enseignant</option>
+          <option value="Professeur">Professeur</option>
+        </select>
+        <label class="field-label">Matière(s) enseignée(s)</label>
+        <input class="field" id="in-teacher-subjects" placeholder="Ex. Géologie, SVT" />
+        <label class="field-label">Niveau(x) enseigné(s)</label>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:4px;">
+          ${["Collège", "Lycée", "Université", "Formation professionnelle"].map(lvl => `
+            <label style="display:flex; align-items:center; gap:5px; font-size:12.5px; border:1.4px solid var(--line); border-radius:20px; padding:6px 12px; cursor:pointer;">
+              <input type="checkbox" class="teacher-level-cb" value="${lvl}" style="margin:0;" /> ${lvl}
+            </label>
+          `).join('')}
+        </div>
+        <label class="field-label">Établissement</label>
+        <input class="field" id="in-etab" placeholder="Ex. Lycée John F. Kennedy" />
+        <label class="field-label">Fonction</label>
+        <select class="field" id="in-teacher-function">
+          <option value="Professeur">Professeur</option>
+          <option value="Vacataire">Vacataire</option>
+          <option value="Chercheur">Chercheur</option>
+          <option value="Responsable pédagogique">Responsable pédagogique</option>
+        </select>
+        <label class="field-label">Années d'expérience</label>
+        <input class="field" id="in-teacher-experience" type="number" min="0" placeholder="Ex. 5" />
+        <label class="field-label">Diplômes et qualifications</label>
+        <input class="field" id="in-teacher-diplomas" placeholder="Ex. Master en Géologie" />
+        <label class="field-label">Spécialités</label>
+        <input class="field" id="in-teacher-specialties" placeholder="Ex. Pétrographie, Hydrogéologie" />
+      ` : ""}
       ${authMode === "register" && authRole === "entreprise" ? `
-        <label class="field-label">Nom de l'entreprise</label>
-        <input class="field" id="in-company" placeholder="Ex. Sénégal Mines SA" />
-        <label class="field-label">Nom du représentant</label>
-        <input class="field" id="in-name" placeholder="Ex. Ousmane Diop" />
-        <label class="field-label">Secteur d'activité</label>
-        <input class="field" id="in-sector" placeholder="Ex. Exploitation minière" />
+        <div class="section-title" style="margin-top:16px;">🏢 Entreprise</div>
+        <label class="field-label">Nom de l'entreprise *</label>
+        <input class="field" id="in-company" placeholder="Ex. Teranga Mining" />
+        <label class="field-label">Secteur d'activité *</label>
+        <input class="field" id="in-sector" placeholder="Ex. Mines et géologie" />
+        <label class="field-label">Description de l'entreprise</label>
+        <textarea class="field" id="in-company-desc" placeholder="Présentation courte de l'entreprise"></textarea>
+        <label class="field-label">Site web</label>
+        <input class="field" id="in-company-website" placeholder="Ex. https://teranga-mining.sn" />
+        <label class="field-label">Pays</label>
+        <input class="field" id="in-company-country" placeholder="Ex. Sénégal" />
+        <label class="field-label">Ville</label>
+        <input class="field" id="in-company-city" placeholder="Ex. Dakar" />
+        <label class="field-label">Adresse professionnelle</label>
+        <input class="field" id="in-company-address" placeholder="Adresse du siège" />
+        <label class="field-label">Année de création</label>
+        <input class="field" id="in-company-year" type="number" placeholder="Ex. 2015" />
+        <label class="field-label">Taille de l'entreprise</label>
+        <select class="field" id="in-company-size">
+          <option value="1-10">1–10 employés</option>
+          <option value="11-50">11–50 employés</option>
+          <option value="51-200">51–200 employés</option>
+          <option value="200+">200+ employés</option>
+        </select>
+        <label class="field-label">Numéro d'identification (si nécessaire)</label>
+        <input class="field" id="in-company-regnum" placeholder="Ex. NINEA / RCCM" />
+
+        <div class="section-title">👤 Représentant du compte</div>
+        <label class="field-label">Prénom *</label>
+        <input class="field" id="in-rep-firstname" placeholder="Ex. Mamadou" />
+        <label class="field-label">Nom *</label>
+        <input class="field" id="in-rep-lastname" placeholder="Ex. Fall" />
+        <label class="field-label">Fonction dans l'entreprise *</label>
+        <input class="field" id="in-rep-function" placeholder="Ex. Responsable RH" />
+        <label class="field-label">Téléphone professionnel</label>
+        <input class="field" id="in-rep-phone" placeholder="Ex. +221 77 000 00 00" />
+        <p style="font-size:11px; color:var(--schist); margin:2px 0 0;">L'e-mail professionnel du représentant est celui utilisé ci-dessous pour le compte.</p>
+
+        <div class="section-title">🎯 Objectifs sur la plateforme</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:4px;">
+          ${["Recruter des étudiants", "Publier des offres de stage", "Publier des offres d'emploi", "Rechercher des profils particuliers", "Proposer des formations", "Organiser des conférences / webinaires", "Trouver des partenaires", "Soutenir des projets étudiants", "Financer des projets", "Publier des opportunités professionnelles"].map(obj => `
+            <label style="display:flex; align-items:center; gap:5px; font-size:12px; border:1.4px solid var(--line); border-radius:20px; padding:6px 12px; cursor:pointer;">
+              <input type="checkbox" class="company-objective-cb" value="${obj}" style="margin:0;" /> ${obj}
+            </label>
+          `).join('')}
+        </div>
       ` : ""}
 
       <label class="field-label">E-mail</label>
@@ -337,22 +409,67 @@ async function submitAuth() {
 
   try {
     if (authMode === "register") {
-      const etab = authRole === "eleve" ? document.getElementById('in-etab').value.trim() : "";
+      const etab = (authRole === "eleve" || authRole === "enseignant") ? document.getElementById('in-etab').value.trim() : "";
       const company = authRole === "entreprise" ? document.getElementById('in-company').value.trim() : "";
       const sector = authRole === "entreprise" ? document.getElementById('in-sector').value.trim() : "";
-      const name = document.getElementById('in-name').value.trim();
+      const name = authRole === "entreprise" ? "" : document.getElementById('in-name').value.trim();
 
-      if (!name) throw new Error(authRole === "entreprise" ? "Merci d'indiquer le nom du représentant." : "Merci d'indiquer ton nom.");
+      let teacherFields = {};
+      if (authRole === "enseignant") {
+        const levels = Array.from(document.querySelectorAll('.teacher-level-cb:checked')).map(cb => cb.value);
+        teacherFields = {
+          profession: document.getElementById('in-teacher-profession').value,
+          subjects: document.getElementById('in-teacher-subjects').value.trim(),
+          levels,
+          function: document.getElementById('in-teacher-function').value,
+          experience: document.getElementById('in-teacher-experience').value.trim(),
+          diplomas: document.getElementById('in-teacher-diplomas').value.trim(),
+          specialties: document.getElementById('in-teacher-specialties').value.trim()
+        };
+      }
+
+      let companyFields = {};
+      let repFirstName = "", repLastName = "", repFunction = "";
+      if (authRole === "entreprise") {
+        repFirstName = document.getElementById('in-rep-firstname').value.trim();
+        repLastName = document.getElementById('in-rep-lastname').value.trim();
+        repFunction = document.getElementById('in-rep-function').value.trim();
+        const objectives = Array.from(document.querySelectorAll('.company-objective-cb:checked')).map(cb => cb.value);
+        companyFields = {
+          description: document.getElementById('in-company-desc').value.trim(),
+          website: document.getElementById('in-company-website').value.trim(),
+          country: document.getElementById('in-company-country').value.trim(),
+          city: document.getElementById('in-company-city').value.trim(),
+          address: document.getElementById('in-company-address').value.trim(),
+          foundedYear: document.getElementById('in-company-year').value.trim(),
+          size: document.getElementById('in-company-size').value,
+          regNumber: document.getElementById('in-company-regnum').value.trim(),
+          repFirstName, repLastName, repFunction,
+          repPhone: document.getElementById('in-rep-phone').value.trim(),
+          objectives, verified: false
+        };
+      }
+
+      if (authRole !== "entreprise" && !name) throw new Error("Merci d'indiquer ton nom.");
       if (authRole === "eleve" && !etab) throw new Error("Merci d'indiquer ton établissement.");
-      if (authRole === "entreprise" && !company) throw new Error("Merci d'indiquer le nom de l'entreprise.");
+      if (authRole === "enseignant" && !etab) throw new Error("Merci d'indiquer ton établissement.");
+      if (authRole === "entreprise") {
+        if (!company) throw new Error("Merci d'indiquer le nom de l'entreprise.");
+        if (!sector) throw new Error("Merci d'indiquer le secteur d'activité.");
+        if (!repFirstName || !repLastName) throw new Error("Merci d'indiquer le prénom et le nom du représentant.");
+        if (!repFunction) throw new Error("Merci d'indiquer la fonction du représentant.");
+      }
+
+      const finalName = authRole === "entreprise" ? `${repFirstName} ${repLastName}`.trim() : name;
 
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
       const uid = cred.user.uid;
       // Note sécurité : "role" est limité côté serveur (règles Firestore) à eleve/enseignant/entreprise.
       // Un compte "admin" ne peut jamais être créé depuis ce formulaire public.
       const profile = {
-        uid, name, role: authRole,
+        uid, name: finalName, email, role: authRole,
         etab: etab || null, company: company || null, sector: sector || null,
+        ...teacherFields, ...companyFields,
         scores: {}, joined: new Date().toISOString(), lastActive: new Date().toISOString()
       };
       await db.collection("users").doc(uid).set(profile);
@@ -719,13 +836,34 @@ async function renderUserDetail(uid) {
   const u = docSnap.data();
   const roleLabel = { eleve: "Élève", enseignant: "Enseignant", entreprise: "Entreprise", admin: "Admin" };
   const isDisabled = u.status === "disabled";
+  const isVerified = u.verified === true;
 
   const rows = [
     ["Nom", u.name],
+    ["E-mail", u.email || '—'],
     ["Rôle", roleLabel[u.role] || u.role],
     u.etab ? ["Établissement", u.etab] : null,
     u.company ? ["Entreprise", u.company] : null,
     u.sector ? ["Secteur", u.sector] : null,
+    u.description ? ["Description", u.description] : null,
+    u.website ? ["Site web", u.website] : null,
+    (u.city || u.country) ? ["Localisation", [u.city, u.country].filter(Boolean).join(', ')] : null,
+    u.address ? ["Adresse professionnelle", u.address] : null,
+    u.foundedYear ? ["Année de création", u.foundedYear] : null,
+    u.size ? ["Taille de l'entreprise", u.size + ' employés'] : null,
+    u.regNumber ? ["Numéro d'identification", u.regNumber] : null,
+    (u.repFirstName || u.repLastName) ? ["Représentant", `${u.repFirstName || ''} ${u.repLastName || ''}`.trim()] : null,
+    u.repFunction ? ["Fonction du représentant", u.repFunction] : null,
+    u.repPhone ? ["Téléphone professionnel", u.repPhone] : null,
+    (u.objectives && u.objectives.length) ? ["Objectifs sur la plateforme", u.objectives.join(', ')] : null,
+    u.role === "entreprise" ? ["Vérification", isVerified ? "✓ Entreprise vérifiée" : "Non vérifiée"] : null,
+    u.profession ? ["Profession", u.profession] : null,
+    u.subjects ? ["Matière(s) enseignée(s)", u.subjects] : null,
+    (u.levels && u.levels.length) ? ["Niveau(x) enseigné(s)", u.levels.join(', ')] : null,
+    u.function ? ["Fonction", u.function] : null,
+    u.experience ? ["Années d'expérience", u.experience] : null,
+    u.diplomas ? ["Diplômes et qualifications", u.diplomas] : null,
+    u.specialties ? ["Spécialités", u.specialties] : null,
     ["Inscrit le", new Date(u.joined).toLocaleDateString('fr-FR')],
     ["Dernière activité", u.lastActive ? new Date(u.lastActive).toLocaleDateString('fr-FR') : '—'],
     ["Statut", isDisabled ? "Désactivé" : "Actif"]
@@ -739,6 +877,11 @@ async function renderUserDetail(uid) {
       </div>
     `).join('')}
     <div class="section-title">Actions</div>
+    ${u.role === "entreprise" ? `
+      <button class="btn btn-primary" id="toggle-verified" style="margin-bottom:10px; background:${isVerified ? 'var(--schist)' : 'var(--malachite)'};">
+        ${isVerified ? 'Retirer la vérification' : '✓ Marquer comme vérifiée'}
+      </button>
+    ` : ''}
     <button class="btn btn-primary" id="toggle-status" style="margin-bottom:10px; background:${isDisabled ? 'var(--malachite)' : 'var(--basalt)'};">
       ${isDisabled ? 'Réactiver le compte' : 'Désactiver le compte'}
     </button>
@@ -747,6 +890,12 @@ async function renderUserDetail(uid) {
       La désactivation bloque immédiatement l'accès. La suppression retire le profil et bloque l'accès de façon permanente.
     </p>
   `;
+  if (u.role === "entreprise") {
+    document.getElementById('toggle-verified').onclick = async () => {
+      await db.collection("users").doc(uid).update({ verified: !isVerified });
+      renderUserDetail(uid);
+    };
+  }
   document.getElementById('toggle-status').onclick = async () => {
     await db.collection("users").doc(uid).update({ status: isDisabled ? "actif" : "disabled" });
     renderUserDetail(uid);
@@ -1103,12 +1252,22 @@ function renderCompany() {
   render(`
     <div class="screen active">
       <div class="app-header">
-        <div><div class="greet">Espace</div><h2 class="h2">${currentProfile.company || 'Entreprise'}</h2></div>
+        <div>
+          <div class="greet">Espace</div>
+          <h2 class="h2">${currentProfile.company || 'Entreprise'}${currentProfile.verified ? ' <span style="color:var(--malachite); font-size:14px;">✓</span>' : ''}</h2>
+        </div>
       </div>
+      ${currentProfile.verified ? `<div class="file-pill" style="margin-bottom:14px;">✓ Entreprise vérifiée</div>` : ''}
       <div class="chapter-row" style="cursor:default;">
         <div style="flex:1; min-width:0;">
           <h4 class="chapter-title">Secteur d'activité</h4>
           <p class="chapter-desc">${currentProfile.sector || 'Non renseigné'}</p>
+        </div>
+      </div>
+      <div class="chapter-row" style="cursor:default;">
+        <div style="flex:1; min-width:0;">
+          <h4 class="chapter-title">Représentant</h4>
+          <p class="chapter-desc">${currentProfile.name}${currentProfile.repFunction ? ' · ' + currentProfile.repFunction : ''}</p>
         </div>
       </div>
       <div class="section-title">Prochainement</div>
