@@ -631,14 +631,131 @@ async function renderAdmin() {
         <div><div class="chapter-title" style="margin:0;">Gestion des cours</div><div class="meta">Matières, thèmes, documents</div></div>
         <span style="color:var(--schist);">→</span>
       </div>
-      <div class="card-row" style="cursor:default; opacity:0.55;">
-        <div><div class="chapter-title" style="margin:0;">Gestion des utilisateurs</div><div class="meta">Bientôt disponible (Phase 3)</div></div>
+      <div class="card-row" id="go-users">
+        <div><div class="chapter-title" style="margin:0;">Gestion des utilisateurs</div><div class="meta">Recherche, filtres, statut des comptes</div></div>
+        <span style="color:var(--schist);">→</span>
       </div>
     </div>
     ${footerHtml()}
   `);
   document.getElementById('go-courses').onclick = renderAdminSubjects;
+  document.getElementById('go-users').onclick = renderAdminUsers;
   attachFooter();
+}
+
+/* ============ ADMIN : GESTION DES UTILISATEURS ============ */
+let userFilterRole = "tous";
+let userSearchText = "";
+
+async function renderAdminUsers() {
+  render(`
+    <div class="screen active">
+      <div class="back-row" id="back-admin-users">← Administration</div>
+      <div class="app-header"><h2 class="h2">Utilisateurs</h2></div>
+      <input class="field" id="user-search" placeholder="Rechercher un nom…" style="margin-bottom:10px;" value="${userSearchText}" />
+      <div class="tabs" id="role-filter-tabs">
+        <button class="tab-btn ${userFilterRole === 'tous' ? 'active' : ''}" data-role="tous">Tous</button>
+        <button class="tab-btn ${userFilterRole === 'eleve' ? 'active' : ''}" data-role="eleve">Élèves</button>
+        <button class="tab-btn ${userFilterRole === 'enseignant' ? 'active' : ''}" data-role="enseignant">Enseignants</button>
+        <button class="tab-btn ${userFilterRole === 'entreprise' ? 'active' : ''}" data-role="entreprise">Entreprises</button>
+      </div>
+      <div id="admin-users-wrap"><div class="loading">Chargement…</div></div>
+    </div>
+    ${footerHtml()}
+  `);
+  document.getElementById('back-admin-users').onclick = renderAdmin;
+  document.querySelectorAll('#role-filter-tabs .tab-btn').forEach(b => {
+    b.onclick = () => { userFilterRole = b.dataset.role; renderAdminUsers(); };
+  });
+  document.getElementById('user-search').oninput = (e) => {
+    userSearchText = e.target.value;
+    loadAdminUsers();
+  };
+  attachFooter();
+  loadAdminUsers();
+}
+
+async function loadAdminUsers() {
+  const snap = await db.collection("users").get();
+  let all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  if (userFilterRole !== "tous") all = all.filter(u => u.role === userFilterRole);
+  if (userSearchText.trim()) {
+    const q = userSearchText.trim().toLowerCase();
+    all = all.filter(u => (u.name || '').toLowerCase().includes(q) || (u.company || '').toLowerCase().includes(q) || (u.etab || '').toLowerCase().includes(q));
+  }
+
+  const wrap = document.getElementById('admin-users-wrap');
+  if (all.length === 0) { wrap.innerHTML = `<p style="font-size:12.5px; color:var(--schist);">Aucun utilisateur trouvé.</p>`; return; }
+
+  const roleLabel = { eleve: "Élève", enseignant: "Enseignant", entreprise: "Entreprise", admin: "Admin" };
+  wrap.innerHTML = all.map(u => `
+    <div class="card-row" data-id="${u.id}">
+      <div>
+        <div class="chapter-title" style="margin:0;">${u.company || u.name}${u.status === 'disabled' ? ' <span style="color:var(--laterite); font-size:11px;">(désactivé)</span>' : ''}</div>
+        <div class="meta">${roleLabel[u.role] || u.role} · ${u.etab || u.sector || ''}</div>
+      </div>
+      <span style="color:var(--schist);">→</span>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.card-row').forEach(el => {
+    el.onclick = () => renderUserDetail(el.dataset.id);
+  });
+}
+
+async function renderUserDetail(uid) {
+  render(`
+    <div class="screen active">
+      <div class="back-row" id="back-users">← Utilisateurs</div>
+      <div id="user-detail-wrap"><div class="loading">Chargement…</div></div>
+    </div>
+    ${footerHtml()}
+  `);
+  document.getElementById('back-users').onclick = renderAdminUsers;
+  attachFooter();
+
+  const docSnap = await db.collection("users").doc(uid).get();
+  if (!docSnap.exists) { document.getElementById('user-detail-wrap').innerHTML = `<p style="font-size:12.5px; color:var(--schist);">Ce compte n'existe plus.</p>`; return; }
+  const u = docSnap.data();
+  const roleLabel = { eleve: "Élève", enseignant: "Enseignant", entreprise: "Entreprise", admin: "Admin" };
+  const isDisabled = u.status === "disabled";
+
+  const rows = [
+    ["Nom", u.name],
+    ["Rôle", roleLabel[u.role] || u.role],
+    u.etab ? ["Établissement", u.etab] : null,
+    u.company ? ["Entreprise", u.company] : null,
+    u.sector ? ["Secteur", u.sector] : null,
+    ["Inscrit le", new Date(u.joined).toLocaleDateString('fr-FR')],
+    ["Dernière activité", u.lastActive ? new Date(u.lastActive).toLocaleDateString('fr-FR') : '—'],
+    ["Statut", isDisabled ? "Désactivé" : "Actif"]
+  ].filter(Boolean);
+
+  document.getElementById('user-detail-wrap').innerHTML = `
+    <div class="app-header"><h2 class="h2">${u.company || u.name}</h2></div>
+    ${rows.map(([label, val]) => `
+      <div class="chapter-row" style="cursor:default;">
+        <div style="flex:1;"><div class="meta" style="margin-bottom:2px;">${label}</div><div class="chapter-title" style="margin:0; font-size:13.5px;">${val}</div></div>
+      </div>
+    `).join('')}
+    <div class="section-title">Actions</div>
+    <button class="btn btn-primary" id="toggle-status" style="margin-bottom:10px; background:${isDisabled ? 'var(--malachite)' : 'var(--basalt)'};">
+      ${isDisabled ? 'Réactiver le compte' : 'Désactiver le compte'}
+    </button>
+    <button class="btn btn-primary" id="delete-user" style="background:var(--laterite);">Supprimer définitivement</button>
+    <p style="font-size:11px; color:var(--schist); margin-top:10px; line-height:1.5;">
+      La désactivation bloque immédiatement l'accès. La suppression retire le profil et bloque l'accès de façon permanente.
+    </p>
+  `;
+  document.getElementById('toggle-status').onclick = async () => {
+    await db.collection("users").doc(uid).update({ status: isDisabled ? "actif" : "disabled" });
+    renderUserDetail(uid);
+  };
+  document.getElementById('delete-user').onclick = async () => {
+    if (!confirm(`Supprimer définitivement le compte de ${u.name} ? Cette action est irréversible.`)) return;
+    await db.collection("users").doc(uid).delete();
+    renderAdminUsers();
+  };
 }
 
 /* ============ BIBLIOTHÈQUE — ADMIN : MATIÈRES ============ */
@@ -1021,11 +1138,17 @@ auth.onAuthStateChanged(async (user) => {
     currentUser = user;
     const doc = await db.collection("users").doc(user.uid).get();
     if (!doc.exists) {
-      // Cas rare : compte auth existe mais pas de profil Firestore
+      // Cas rare : compte auth existe mais pas de profil Firestore (ex. compte supprimé par un admin)
       await auth.signOut();
+      alert("Ce compte n'existe plus ou a été supprimé.");
       return;
     }
     currentProfile = doc.data();
+    if (currentProfile.status === "disabled") {
+      await auth.signOut();
+      alert("Ce compte a été désactivé. Contacte un administrateur pour plus d'informations.");
+      return;
+    }
     if (currentProfile.role === "enseignant") {
       renderTeacher();
     } else if (currentProfile.role === "admin") {
