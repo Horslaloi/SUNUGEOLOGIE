@@ -804,7 +804,10 @@ async function submitNewCourse(subjectId, themeId, subjectName, themeName) {
     formData.append("file", file);
     formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
     // resource_type "raw" est nécessaire pour les fichiers non-image (PDF, Word, PowerPoint)
-    const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`;
+    // Les PDF utilisent resource_type "image" pour un affichage en ligne (inline) dans le navigateur.
+    // Word/PowerPoint restent en "raw" — le visualiseur Office récupère le fichier lui-même, donc peu importe.
+    const resourceType = fileType === "pdf" ? "image" : "raw";
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
 
     const fileUrl = await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -943,13 +946,40 @@ async function renderLibraryCourses(subjectId, subjectName, themeId, themeName) 
   });
   const wrap = document.getElementById('lib-courses-wrap');
   if (visible.length === 0) { wrap.innerHTML = `<p style="font-size:12.5px; color:var(--schist);">Aucun document disponible pour ton profil.</p>`; return; }
-  wrap.innerHTML = visible.map(d => {
-    const c = d.data();
-    return `<a href="${c.fileUrl}" target="_blank" rel="noopener" class="card-row" style="text-decoration:none; color:inherit;">
+  const courseList = visible.map(d => d.data());
+  wrap.innerHTML = courseList.map((c, i) => `
+    <div class="card-row" data-i="${i}">
       <div><div class="chapter-title" style="margin:0;">${c.title}</div><div class="meta">${c.level || ''}</div><div class="file-pill">${c.fileType.toUpperCase()}</div></div>
-      <span style="color:var(--schist);">↓</span>
-    </a>`;
-  }).join('');
+      <span style="color:var(--schist);">Consulter →</span>
+    </div>`).join('');
+  wrap.querySelectorAll('.card-row').forEach(el => {
+    el.onclick = () => renderDocumentViewer(courseList[parseInt(el.dataset.i)], () => renderLibraryCourses(subjectId, subjectName, themeId, themeName));
+  });
+}
+
+/* ============ LECTEUR DE DOCUMENT INTÉGRÉ (PDF natif / Word & PowerPoint via Office Viewer) ============ */
+function renderDocumentViewer(course, onBack) {
+  const isPdf = course.fileType === "pdf";
+  const viewerSrc = isPdf
+    ? course.fileUrl
+    : `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(course.fileUrl)}`;
+
+  render(`
+    <div class="screen active" style="padding:0; display:flex; flex-direction:column;">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--line); flex-shrink:0;">
+        <span id="viewer-back" style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--schist); cursor:pointer;">← Retour</span>
+        <span style="font-family:'Fraunces',serif; font-weight:600; font-size:13px; text-align:center; flex:1; margin:0 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${course.title}</span>
+        <a href="${course.fileUrl}" target="_blank" rel="noopener" style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--laterite); text-decoration:none; flex-shrink:0;">Télécharger</a>
+      </div>
+      <div style="flex:1; position:relative; background:#e9e4d8;">
+        <div id="viewer-loading" class="loading" style="position:absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center;">Chargement du document…</div>
+        <iframe id="doc-iframe" src="${viewerSrc}" style="width:100%; height:100%; border:none; position:relative; z-index:1;"></iframe>
+      </div>
+    </div>
+  `);
+  document.getElementById('viewer-back').onclick = onBack;
+  const iframe = document.getElementById('doc-iframe');
+  iframe.onload = () => { document.getElementById('viewer-loading').style.display = 'none'; };
 }
 
 /* ============ FOOTER (commun) ============ */
