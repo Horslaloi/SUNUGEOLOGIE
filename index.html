@@ -806,8 +806,7 @@ async function submitNewCourse(subjectId, themeId, subjectName, themeName) {
     // resource_type "raw" est nécessaire pour les fichiers non-image (PDF, Word, PowerPoint)
     // Les PDF utilisent resource_type "image" pour un affichage en ligne (inline) dans le navigateur.
     // Word/PowerPoint restent en "raw" — le visualiseur Office récupère le fichier lui-même, donc peu importe.
-    const resourceType = fileType === "pdf" ? "image" : "raw";
-    const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`;
 
     const fileUrl = await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -957,11 +956,11 @@ async function renderLibraryCourses(subjectId, subjectName, themeId, themeName) 
   });
 }
 
-/* ============ LECTEUR DE DOCUMENT INTÉGRÉ (PDF natif / Word & PowerPoint via Office Viewer) ============ */
+/* ============ LECTEUR DE DOCUMENT INTÉGRÉ (Google Docs Viewer pour PDF, Office Viewer pour Word/PowerPoint) ============ */
 function renderDocumentViewer(course, onBack) {
   const isPdf = course.fileType === "pdf";
   const viewerSrc = isPdf
-    ? course.fileUrl
+    ? `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(course.fileUrl)}`
     : `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(course.fileUrl)}`;
 
   render(`
