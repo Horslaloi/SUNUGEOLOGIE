@@ -290,7 +290,18 @@ function renderAuthScreen(errorMsg) {
       ` : ""}
       ${authMode === "register" && authRole === "eleve" ? `
         <label class="field-label">Établissement</label>
-        <input class="field" id="in-etab" placeholder="Ex. CEM Kédougou" />
+        ${establishmentsCache === null ? `
+          <p style="font-size:12px; color:var(--schist);">Chargement des établissements…</p>
+        ` : establishmentsCache.length === 0 ? `
+          <input class="field" id="in-etab" placeholder="Ex. CEM Kédougou" />
+          <p style="font-size:11px; color:var(--schist); margin:4px 0 0;">Aucun établissement enregistré pour l'instant — indique-le librement.</p>
+        ` : `
+          <select class="field" id="in-eleve-estab-select" style="margin-bottom:8px;">
+            ${establishmentsCache.map(e => `<option value="${e.id}">${e.name}</option>`).join('')}
+          </select>
+          <label class="field-label">Classe</label>
+          <select class="field" id="in-eleve-class-select"></select>
+        `}
       ` : ""}
       ${authMode === "register" && authRole === "enseignant" ? `
         <label class="field-label">Profession</label>
@@ -398,6 +409,23 @@ function renderAuthScreen(errorMsg) {
     renderAuthScreen();
   };
   document.getElementById('submit-auth').onclick = submitAuth;
+
+  // Charge la liste des établissements pour l'inscription élève (une seule fois, mis en cache)
+  if (authMode === "register" && authRole === "eleve" && establishmentsCache === null) {
+    loadEstablishmentsCache().then(() => renderAuthScreen());
+  }
+  const eleveEstabSelect = document.getElementById('in-eleve-estab-select');
+  if (eleveEstabSelect) {
+    const eleveClassSelect = document.getElementById('in-eleve-class-select');
+    const populateEleveClasses = () => {
+      const estab = establishmentsCache.find(e => e.id === eleveEstabSelect.value);
+      eleveClassSelect.innerHTML = estab.classes.length
+        ? estab.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('')
+        : `<option value="">Aucune classe disponible</option>`;
+    };
+    eleveEstabSelect.onchange = populateEleveClasses;
+    populateEleveClasses();
+  }
 }
 
 async function submitAuth() {
@@ -409,7 +437,24 @@ async function submitAuth() {
 
   try {
     if (authMode === "register") {
-      const etab = (authRole === "eleve" || authRole === "enseignant") ? document.getElementById('in-etab').value.trim() : "";
+      let etab = "", establishmentId = null, establishmentName = null, classId = null, className = null;
+      if (authRole === "eleve") {
+        const eleveEstabSelect = document.getElementById('in-eleve-estab-select');
+        if (eleveEstabSelect) {
+          const eleveClassSelect = document.getElementById('in-eleve-class-select');
+          const estab = establishmentsCache.find(e => e.id === eleveEstabSelect.value);
+          const cls = estab ? estab.classes.find(c => c.id === eleveClassSelect.value) : null;
+          establishmentId = estab ? estab.id : null;
+          establishmentName = estab ? estab.name : null;
+          classId = cls ? cls.id : null;
+          className = cls ? cls.name : null;
+          etab = establishmentName || "";
+        } else {
+          etab = document.getElementById('in-etab').value.trim();
+        }
+      } else if (authRole === "enseignant") {
+        etab = document.getElementById('in-etab').value.trim();
+      }
       const company = authRole === "entreprise" ? document.getElementById('in-company').value.trim() : "";
       const sector = authRole === "entreprise" ? document.getElementById('in-sector').value.trim() : "";
       const name = authRole === "entreprise" ? "" : document.getElementById('in-name').value.trim();
@@ -469,6 +514,8 @@ async function submitAuth() {
       const profile = {
         uid, name: finalName, email, role: authRole,
         etab: etab || null, company: company || null, sector: sector || null,
+        establishmentId: establishmentId || null, establishmentName: establishmentName || null,
+        classId: classId || null, className: className || null,
         ...teacherFields, ...companyFields,
         scores: {}, joined: new Date().toISOString(), lastActive: new Date().toISOString()
       };
@@ -748,6 +795,10 @@ async function renderAdmin() {
         <div><div class="chapter-title" style="margin:0;">Gestion des cours</div><div class="meta">Matières, thèmes, documents</div></div>
         <span style="color:var(--schist);">→</span>
       </div>
+      <div class="card-row" id="go-establishments">
+        <div><div class="chapter-title" style="margin:0;">Gestion des établissements</div><div class="meta">Établissements, classes</div></div>
+        <span style="color:var(--schist);">→</span>
+      </div>
       <div class="card-row" id="go-users">
         <div><div class="chapter-title" style="margin:0;">Gestion des utilisateurs</div><div class="meta">Recherche, filtres, statut des comptes</div></div>
         <span style="color:var(--schist);">→</span>
@@ -756,8 +807,135 @@ async function renderAdmin() {
     ${footerHtml()}
   `);
   document.getElementById('go-courses').onclick = renderAdminSubjects;
+  document.getElementById('go-establishments').onclick = renderAdminEstablishments;
   document.getElementById('go-users').onclick = renderAdminUsers;
   attachFooter();
+}
+
+/* ============ CACHE ÉTABLISSEMENTS + CLASSES (partagé admin & inscription) ============ */
+let establishmentsCache = null;
+
+async function loadEstablishmentsCache(forceReload) {
+  if (establishmentsCache !== null && !forceReload) return establishmentsCache;
+  const snap = await db.collection("establishments").orderBy("createdAt").get();
+  const list = [];
+  for (const doc of snap.docs) {
+    const classesSnap = await db.collection("establishments").doc(doc.id).collection("classes").orderBy("createdAt").get();
+    list.push({
+      id: doc.id, ...doc.data(),
+      classes: classesSnap.docs.map(c => ({ id: c.id, ...c.data() }))
+    });
+  }
+  establishmentsCache = list;
+  return list;
+}
+
+/* ============ ADMIN : GESTION DES ÉTABLISSEMENTS ============ */
+async function renderAdminEstablishments() {
+  render(`
+    <div class="screen active">
+      <div class="back-row" id="back-admin-estab">← Administration</div>
+      <div class="app-header"><h2 class="h2">Établissements</h2></div>
+      <div id="estab-wrap"><div class="loading">Chargement…</div></div>
+      <div class="section-title">Ajouter un établissement</div>
+      <input class="field" id="new-estab-name" placeholder="Ex. Lycée John F. Kennedy" style="margin-bottom:8px;" />
+      <input class="field" id="new-estab-city" placeholder="Ville" style="margin-bottom:8px;" />
+      <select class="field" id="new-estab-type" style="margin-bottom:8px;">
+        <option value="Collège">Collège</option>
+        <option value="Lycée">Lycée</option>
+        <option value="Université">Université</option>
+        <option value="Formation professionnelle">Formation professionnelle</option>
+      </select>
+      <button class="btn btn-primary" id="add-estab">+ Ajouter l'établissement</button>
+    </div>
+    ${footerHtml()}
+  `);
+  document.getElementById('back-admin-estab').onclick = renderAdmin;
+  document.getElementById('add-estab').onclick = async () => {
+    const name = document.getElementById('new-estab-name').value.trim();
+    const city = document.getElementById('new-estab-city').value.trim();
+    const type = document.getElementById('new-estab-type').value;
+    if (!name) return;
+    await db.collection("establishments").add({ name, city, type, createdAt: new Date().toISOString() });
+    await loadEstablishmentsCache(true);
+    renderAdminEstablishments();
+  };
+  attachFooter();
+  await loadEstablishmentsCache(true);
+  renderAdminEstablishmentsList();
+}
+
+function renderAdminEstablishmentsList() {
+  const wrap = document.getElementById('estab-wrap');
+  if (!wrap) return;
+  if (establishmentsCache.length === 0) { wrap.innerHTML = `<p style="font-size:12.5px; color:var(--schist);">Aucun établissement pour l'instant.</p>`; return; }
+  wrap.innerHTML = establishmentsCache.map(e => `
+    <div class="card-row" data-id="${e.id}">
+      <div><div class="chapter-title" style="margin:0;">${e.name}</div><div class="meta">${e.type} · ${e.city || ''} · ${e.classes.length} classe(s)</div></div>
+      <button class="icon-btn del-estab" data-id="${e.id}" title="Supprimer">✕</button>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.card-row').forEach(el => {
+    el.onclick = (ev) => { if (ev.target.classList.contains('del-estab')) return; renderAdminClasses(el.dataset.id); };
+  });
+  wrap.querySelectorAll('.del-estab').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      if (!confirm("Supprimer cet établissement et toutes ses classes ?")) return;
+      await db.collection("establishments").doc(btn.dataset.id).delete();
+      await loadEstablishmentsCache(true);
+      renderAdminEstablishmentsList();
+    };
+  });
+}
+
+/* ============ ADMIN : GESTION DES CLASSES D'UN ÉTABLISSEMENT ============ */
+async function renderAdminClasses(estabId) {
+  const estab = establishmentsCache.find(e => e.id === estabId);
+  render(`
+    <div class="screen active">
+      <div class="back-row" id="back-estab-list">← Établissements</div>
+      <div class="app-header"><h2 class="h2">${estab.name}</h2></div>
+      <div class="section-title">Classes</div>
+      <div id="classes-wrap"></div>
+      <div class="section-title">Ajouter une classe</div>
+      <input class="field" id="new-class-name" placeholder="Ex. Terminale S" style="margin-bottom:8px;" />
+      <input class="field" id="new-class-level" placeholder="Niveau (ex. Terminale)" style="margin-bottom:8px;" />
+      <button class="btn btn-primary" id="add-class">+ Ajouter la classe</button>
+    </div>
+    ${footerHtml()}
+  `);
+  document.getElementById('back-estab-list').onclick = renderAdminEstablishments;
+  document.getElementById('add-class').onclick = async () => {
+    const name = document.getElementById('new-class-name').value.trim();
+    const level = document.getElementById('new-class-level').value.trim();
+    if (!name) return;
+    await db.collection("establishments").doc(estabId).collection("classes").add({ name, level, createdAt: new Date().toISOString() });
+    await loadEstablishmentsCache(true);
+    renderAdminClasses(estabId);
+  };
+  attachFooter();
+  renderAdminClassesList(estabId);
+}
+
+function renderAdminClassesList(estabId) {
+  const estab = establishmentsCache.find(e => e.id === estabId);
+  const wrap = document.getElementById('classes-wrap');
+  if (estab.classes.length === 0) { wrap.innerHTML = `<p style="font-size:12.5px; color:var(--schist);">Aucune classe pour l'instant.</p>`; return; }
+  wrap.innerHTML = estab.classes.map(c => `
+    <div class="card-row" style="cursor:default;">
+      <div><div class="chapter-title" style="margin:0;">${c.name}</div><div class="meta">${c.level || ''}</div></div>
+      <button class="icon-btn del-class" data-id="${c.id}" title="Supprimer">✕</button>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.del-class').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Supprimer cette classe ?")) return;
+      await db.collection("establishments").doc(estabId).collection("classes").doc(btn.dataset.id).delete();
+      await loadEstablishmentsCache(true);
+      renderAdminClasses(estabId);
+    };
+  });
 }
 
 /* ============ ADMIN : GESTION DES UTILISATEURS ============ */
@@ -843,6 +1021,7 @@ async function renderUserDetail(uid) {
     ["E-mail", u.email || '—'],
     ["Rôle", roleLabel[u.role] || u.role],
     u.etab ? ["Établissement", u.etab] : null,
+    u.className ? ["Classe", u.className] : null,
     u.company ? ["Entreprise", u.company] : null,
     u.sector ? ["Secteur", u.sector] : null,
     u.description ? ["Description", u.description] : null,
@@ -877,6 +1056,7 @@ async function renderUserDetail(uid) {
       </div>
     `).join('')}
     <div class="section-title">Actions</div>
+    ${u.role === "enseignant" ? `<div id="assignments-section"><div class="loading">Chargement des affectations…</div></div>` : ''}
     ${u.role === "entreprise" ? `
       <button class="btn btn-primary" id="toggle-verified" style="margin-bottom:10px; background:${isVerified ? 'var(--schist)' : 'var(--malachite)'};">
         ${isVerified ? 'Retirer la vérification' : '✓ Marquer comme vérifiée'}
@@ -890,6 +1070,9 @@ async function renderUserDetail(uid) {
       La désactivation bloque immédiatement l'accès. La suppression retire le profil et bloque l'accès de façon permanente.
     </p>
   `;
+  if (u.role === "enseignant") {
+    await renderTeacherAssignments(uid, u);
+  }
   if (u.role === "entreprise") {
     document.getElementById('toggle-verified').onclick = async () => {
       await db.collection("users").doc(uid).update({ verified: !isVerified });
@@ -905,6 +1088,65 @@ async function renderUserDetail(uid) {
     await db.collection("users").doc(uid).delete();
     renderAdminUsers();
   };
+}
+
+/* ============ AFFECTATIONS PÉDAGOGIQUES D'UN ENSEIGNANT (établissement + classe réellement enseignés) ============ */
+async function renderTeacherAssignments(uid, u) {
+  await loadEstablishmentsCache(true);
+  const assignments = u.teachingAssignments || [];
+  const section = document.getElementById('assignments-section');
+
+  section.innerHTML = `
+    <div style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--schist); margin-bottom:8px;">Affectations pédagogiques (classes réellement enseignées)</div>
+    ${assignments.length === 0 ? `<p style="font-size:12px; color:var(--schist); margin-bottom:10px;">Aucune affectation pour l'instant.</p>` : assignments.map((a, i) => `
+      <div class="card-row" style="cursor:default;">
+        <div><div class="chapter-title" style="margin:0; font-size:13px;">${a.establishmentName}</div><div class="meta">${a.className}</div></div>
+        <button class="icon-btn remove-assignment" data-i="${i}" title="Retirer">✕</button>
+      </div>
+    `).join('')}
+    ${establishmentsCache.length === 0 ? `
+      <p style="font-size:12px; color:var(--schist); margin:8px 0;">Crée d'abord un établissement et une classe dans "Gestion des établissements".</p>
+    ` : `
+      <select class="field" id="assign-estab-select" style="margin-bottom:8px;">
+        ${establishmentsCache.map(e => `<option value="${e.id}">${e.name}</option>`).join('')}
+      </select>
+      <select class="field" id="assign-class-select" style="margin-bottom:8px;"></select>
+      <button class="btn btn-primary" id="add-assignment" style="margin-bottom:16px;">+ Ajouter cette affectation</button>
+    `}
+  `;
+
+  section.querySelectorAll('.remove-assignment').forEach(btn => {
+    btn.onclick = async () => {
+      const newAssignments = assignments.filter((_, i) => i !== parseInt(btn.dataset.i));
+      await db.collection("users").doc(uid).update({ teachingAssignments: newAssignments });
+      const updated = { ...u, teachingAssignments: newAssignments };
+      renderTeacherAssignments(uid, updated);
+    };
+  });
+
+  if (establishmentsCache.length > 0) {
+    const estabSelect = document.getElementById('assign-estab-select');
+    const classSelect = document.getElementById('assign-class-select');
+    const populateClasses = () => {
+      const estab = establishmentsCache.find(e => e.id === estabSelect.value);
+      classSelect.innerHTML = estab.classes.length
+        ? estab.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('')
+        : `<option value="">Aucune classe dans cet établissement</option>`;
+    };
+    estabSelect.onchange = populateClasses;
+    populateClasses();
+
+    document.getElementById('add-assignment').onclick = async () => {
+      const estab = establishmentsCache.find(e => e.id === estabSelect.value);
+      const cls = estab.classes.find(c => c.id === classSelect.value);
+      if (!cls) return;
+      const newAssignment = { establishmentId: estab.id, establishmentName: estab.name, classId: cls.id, className: cls.name };
+      const newAssignments = [...assignments, newAssignment];
+      await db.collection("users").doc(uid).update({ teachingAssignments: newAssignments });
+      const updated = { ...u, teachingAssignments: newAssignments };
+      renderTeacherAssignments(uid, updated);
+    };
+  }
 }
 
 /* ============ BIBLIOTHÈQUE — ADMIN : MATIÈRES ============ */
