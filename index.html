@@ -501,29 +501,36 @@ async function submitAuth() {
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
       const uid = cred.user.uid;
 
-      // Résolution établissement/classe : correspondance existante ou création "à vérifier"
-      let etab = "", establishmentId = null, establishmentName = null, classId = null, className = null;
-      if (authRole === "eleve") {
-        const estab = await resolveEstablishment(rawEstab, uid, "eleve", finalName);
-        establishmentId = estab.id; establishmentName = estab.name; etab = estab.name;
-        const cls = await resolveClass(estab.id, rawClass, uid, "eleve", finalName);
-        classId = cls.id; className = cls.name;
-      } else if (authRole === "enseignant") {
-        const estab = await resolveEstablishment(rawEstab, uid, "enseignant", finalName);
-        establishmentId = estab.id; establishmentName = estab.name; etab = estab.name;
-      }
+      try {
+        // Résolution établissement/classe : correspondance existante ou création "à vérifier"
+        let etab = "", establishmentId = null, establishmentName = null, classId = null, className = null;
+        if (authRole === "eleve") {
+          const estab = await resolveEstablishment(rawEstab, uid, "eleve", finalName);
+          establishmentId = estab.id; establishmentName = estab.name; etab = estab.name;
+          const cls = await resolveClass(estab.id, rawClass, uid, "eleve", finalName);
+          classId = cls.id; className = cls.name;
+        } else if (authRole === "enseignant") {
+          const estab = await resolveEstablishment(rawEstab, uid, "enseignant", finalName);
+          establishmentId = estab.id; establishmentName = estab.name; etab = estab.name;
+        }
 
-      // Note sécurité : "role" est limité côté serveur (règles Firestore) à eleve/enseignant/entreprise.
-      // Un compte "admin" ne peut jamais être créé depuis ce formulaire public.
-      const profile = {
-        uid, name: finalName, email, role: authRole,
-        etab: etab || null, company: company || null, sector: sector || null,
-        establishmentId: establishmentId || null, establishmentName: establishmentName || null,
-        classId: classId || null, className: className || null,
-        ...teacherFields, ...companyFields,
-        scores: {}, joined: new Date().toISOString(), lastActive: new Date().toISOString()
-      };
-      await db.collection("users").doc(uid).set(profile);
+        // Note sécurité : "role" est limité côté serveur (règles Firestore) à eleve/enseignant/entreprise.
+        // Un compte "admin" ne peut jamais être créé depuis ce formulaire public.
+        const profile = {
+          uid, name: finalName, email, role: authRole,
+          etab: etab || null, company: company || null, sector: sector || null,
+          establishmentId: establishmentId || null, establishmentName: establishmentName || null,
+          classId: classId || null, className: className || null,
+          ...teacherFields, ...companyFields,
+          scores: {}, joined: new Date().toISOString(), lastActive: new Date().toISOString()
+        };
+        await db.collection("users").doc(uid).set(profile);
+      } catch (innerErr) {
+        // Si une étape échoue après la création du compte de connexion, on supprime ce compte
+        // "fantôme" pour que l'e-mail reste réutilisable et qu'aucune donnée orpheline ne subsiste.
+        await cred.user.delete().catch(() => {});
+        throw innerErr;
+      }
     } else {
       await auth.signInWithEmailAndPassword(email, pass);
     }
