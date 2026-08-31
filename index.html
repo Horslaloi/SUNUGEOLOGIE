@@ -290,18 +290,16 @@ function renderAuthScreen(errorMsg) {
       ` : ""}
       ${authMode === "register" && authRole === "eleve" ? `
         <label class="field-label">Établissement</label>
-        ${establishmentsCache === null ? `
-          <p style="font-size:12px; color:var(--schist);">Chargement des établissements…</p>
-        ` : establishmentsCache.length === 0 ? `
-          <input class="field" id="in-etab" placeholder="Ex. CEM Kédougou" />
-          <p style="font-size:11px; color:var(--schist); margin:4px 0 0;">Aucun établissement enregistré pour l'instant — indique-le librement.</p>
-        ` : `
-          <select class="field" id="in-eleve-estab-select" style="margin-bottom:8px;">
-            ${establishmentsCache.map(e => `<option value="${e.id}">${e.name}</option>`).join('')}
-          </select>
-          <label class="field-label">Classe</label>
-          <select class="field" id="in-eleve-class-select"></select>
-        `}
+        <input class="field" id="in-eleve-estab-input" list="estab-datalist" placeholder="Tape le nom de ton établissement" autocomplete="off" />
+        <datalist id="estab-datalist">
+          ${(establishmentsCache || []).map(e => `<option value="${e.name}">`).join('')}
+        </datalist>
+        <label class="field-label">Classe</label>
+        <input class="field" id="in-eleve-class-input" list="class-datalist" placeholder="Ex. Terminale S" autocomplete="off" />
+        <datalist id="class-datalist"></datalist>
+        <p style="font-size:11px; color:var(--schist); margin:4px 0 0; line-height:1.5;">
+          Si ton établissement n'existe pas encore, il sera ajouté automatiquement et vérifié par un administrateur — tu peux continuer ton inscription normalement.
+        </p>
       ` : ""}
       ${authMode === "register" && authRole === "enseignant" ? `
         <label class="field-label">Profession</label>
@@ -320,7 +318,13 @@ function renderAuthScreen(errorMsg) {
           `).join('')}
         </div>
         <label class="field-label">Établissement</label>
-        <input class="field" id="in-etab" placeholder="Ex. Lycée John F. Kennedy" />
+        <input class="field" id="in-etab" list="estab-datalist" placeholder="Ex. Lycée John F. Kennedy" autocomplete="off" />
+        <datalist id="estab-datalist">
+          ${(establishmentsCache || []).map(e => `<option value="${e.name}">`).join('')}
+        </datalist>
+        <p style="font-size:11px; color:var(--schist); margin:4px 0 0; line-height:1.5;">
+          Si ton établissement n'existe pas encore, il sera ajouté automatiquement et vérifié par un administrateur.
+        </p>
         <label class="field-label">Fonction</label>
         <select class="field" id="in-teacher-function">
           <option value="Professeur">Professeur</option>
@@ -410,21 +414,18 @@ function renderAuthScreen(errorMsg) {
   };
   document.getElementById('submit-auth').onclick = submitAuth;
 
-  // Charge la liste des établissements pour l'inscription élève (une seule fois, mis en cache)
-  if (authMode === "register" && authRole === "eleve" && establishmentsCache === null) {
+  // Charge la liste des établissements pour les suggestions (une seule fois, mis en cache)
+  if (authMode === "register" && (authRole === "eleve" || authRole === "enseignant") && establishmentsCache === null) {
     loadEstablishmentsCache().then(() => renderAuthScreen());
   }
-  const eleveEstabSelect = document.getElementById('in-eleve-estab-select');
-  if (eleveEstabSelect) {
-    const eleveClassSelect = document.getElementById('in-eleve-class-select');
-    const populateEleveClasses = () => {
-      const estab = establishmentsCache.find(e => e.id === eleveEstabSelect.value);
-      eleveClassSelect.innerHTML = estab.classes.length
-        ? estab.classes.map(c => `<option value="${c.id}">${c.name}</option>`).join('')
-        : `<option value="">Aucune classe disponible</option>`;
+  const eleveEstabInput = document.getElementById('in-eleve-estab-input');
+  if (eleveEstabInput && establishmentsCache) {
+    const classDatalist = document.getElementById('class-datalist');
+    const updateClassSuggestions = () => {
+      const match = findFuzzyMatch(eleveEstabInput.value, establishmentsCache, e => e.name);
+      classDatalist.innerHTML = match ? match.classes.map(c => `<option value="${c.name}">`).join('') : '';
     };
-    eleveEstabSelect.onchange = populateEleveClasses;
-    populateEleveClasses();
+    eleveEstabInput.addEventListener('input', updateClassSuggestions);
   }
 }
 
@@ -437,23 +438,12 @@ async function submitAuth() {
 
   try {
     if (authMode === "register") {
-      let etab = "", establishmentId = null, establishmentName = null, classId = null, className = null;
+      let rawEstab = "", rawClass = "";
       if (authRole === "eleve") {
-        const eleveEstabSelect = document.getElementById('in-eleve-estab-select');
-        if (eleveEstabSelect) {
-          const eleveClassSelect = document.getElementById('in-eleve-class-select');
-          const estab = establishmentsCache.find(e => e.id === eleveEstabSelect.value);
-          const cls = estab ? estab.classes.find(c => c.id === eleveClassSelect.value) : null;
-          establishmentId = estab ? estab.id : null;
-          establishmentName = estab ? estab.name : null;
-          classId = cls ? cls.id : null;
-          className = cls ? cls.name : null;
-          etab = establishmentName || "";
-        } else {
-          etab = document.getElementById('in-etab').value.trim();
-        }
+        rawEstab = document.getElementById('in-eleve-estab-input').value.trim();
+        rawClass = document.getElementById('in-eleve-class-input').value.trim();
       } else if (authRole === "enseignant") {
-        etab = document.getElementById('in-etab').value.trim();
+        rawEstab = document.getElementById('in-etab').value.trim();
       }
       const company = authRole === "entreprise" ? document.getElementById('in-company').value.trim() : "";
       const sector = authRole === "entreprise" ? document.getElementById('in-sector').value.trim() : "";
@@ -496,8 +486,9 @@ async function submitAuth() {
       }
 
       if (authRole !== "entreprise" && !name) throw new Error("Merci d'indiquer ton nom.");
-      if (authRole === "eleve" && !etab) throw new Error("Merci d'indiquer ton établissement.");
-      if (authRole === "enseignant" && !etab) throw new Error("Merci d'indiquer ton établissement.");
+      if (authRole === "eleve" && !rawEstab) throw new Error("Merci d'indiquer ton établissement.");
+      if (authRole === "eleve" && !rawClass) throw new Error("Merci d'indiquer ta classe.");
+      if (authRole === "enseignant" && !rawEstab) throw new Error("Merci d'indiquer ton établissement.");
       if (authRole === "entreprise") {
         if (!company) throw new Error("Merci d'indiquer le nom de l'entreprise.");
         if (!sector) throw new Error("Merci d'indiquer le secteur d'activité.");
@@ -509,6 +500,19 @@ async function submitAuth() {
 
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
       const uid = cred.user.uid;
+
+      // Résolution établissement/classe : correspondance existante ou création "à vérifier"
+      let etab = "", establishmentId = null, establishmentName = null, classId = null, className = null;
+      if (authRole === "eleve") {
+        const estab = await resolveEstablishment(rawEstab, uid, "eleve", finalName);
+        establishmentId = estab.id; establishmentName = estab.name; etab = estab.name;
+        const cls = await resolveClass(estab.id, rawClass, uid, "eleve", finalName);
+        classId = cls.id; className = cls.name;
+      } else if (authRole === "enseignant") {
+        const estab = await resolveEstablishment(rawEstab, uid, "enseignant", finalName);
+        establishmentId = estab.id; establishmentName = estab.name; etab = estab.name;
+      }
+
       // Note sécurité : "role" est limité côté serveur (règles Firestore) à eleve/enseignant/entreprise.
       // Un compte "admin" ne peut jamais être créé depuis ce formulaire public.
       const profile = {
@@ -684,14 +688,28 @@ async function finishQuiz() {
 }
 
 /* ============ ÉCRAN ENSEIGNANT ============ */
+let teacherEstabFilter = "tous";
+
 async function renderTeacher() {
+  const assignments = currentProfile.teachingAssignments || [];
+  const distinctEstabs = [...new Map(assignments.map(a => [a.establishmentId, a.establishmentName])).entries()];
+
   render(`
     <div class="screen active">
       <div class="app-header">
         <div><div class="greet">Suivi</div><h2 class="h2">Tableau de bord</h2></div>
         <button id="refresh-btn" style="border:none; background:transparent; cursor:pointer; font-size:18px;">↻</button>
       </div>
-      <div id="stats-wrap"><div class="loading">Chargement des élèves…</div></div>
+      ${assignments.length === 0 ? `
+        <p style="font-size:12.5px; color:var(--schist); line-height:1.6;">Aucune affectation pédagogique ne t'a encore été attribuée. Contacte un administrateur pour être associé à tes classes.</p>
+      ` : `
+        <label class="field-label" style="margin-top:0;">Établissement</label>
+        <select class="field" id="teacher-estab-filter" style="margin-bottom:14px;">
+          <option value="tous" ${teacherEstabFilter === 'tous' ? 'selected' : ''}>Tous mes établissements</option>
+          ${distinctEstabs.map(([id, name]) => `<option value="${id}" ${teacherEstabFilter === id ? 'selected' : ''}>${name}</option>`).join('')}
+        </select>
+        <div id="stats-wrap"><div class="loading">Chargement des élèves…</div></div>
+      `}
       <div class="card-row" id="go-library-teacher" style="margin-top:16px;">
         <div><div class="chapter-title" style="margin:0;">Bibliothèque pédagogique</div><div class="meta">Cours, documents par matière</div></div>
         <span style="color:var(--schist);">→</span>
@@ -699,16 +717,39 @@ async function renderTeacher() {
     </div>
     ${footerHtml()}
   `);
-  document.getElementById('refresh-btn').onclick = loadTeacherData;
   document.getElementById('go-library-teacher').onclick = renderLibrarySubjects;
   attachFooter();
-  loadTeacherData();
+
+  if (assignments.length > 0) {
+    document.getElementById('refresh-btn').onclick = loadTeacherData;
+    document.getElementById('teacher-estab-filter').onchange = (e) => {
+      teacherEstabFilter = e.target.value;
+      loadTeacherData();
+    };
+    loadTeacherData();
+  } else {
+    document.getElementById('refresh-btn').onclick = renderTeacher;
+  }
 }
 
 async function loadTeacherData() {
+  const assignments = currentProfile.teachingAssignments || [];
+  // Ensembles des classes réellement enseignées (pas juste "associées")
+  const assignedClassIds = new Set(assignments.map(a => a.classId));
+  const relevantEstabIds = teacherEstabFilter === "tous"
+    ? new Set(assignments.map(a => a.establishmentId))
+    : new Set([teacherEstabFilter]);
+
   const snap = await db.collection("users").where("role", "==", "eleve").get();
-  const students = snap.docs.map(d => d.data());
-  const etabs = [...new Set(students.map(s => s.etab).filter(Boolean))];
+  const allStudents = snap.docs.map(d => d.data());
+
+  // Un élève n'apparaît que s'il est dans une classe que l'enseignant enseigne réellement,
+  // et dans un établissement couvert par le filtre actuel.
+  const students = allStudents.filter(s =>
+    s.classId && assignedClassIds.has(s.classId) && relevantEstabIds.has(s.establishmentId)
+  );
+
+  const distinctClassIds = new Set(students.map(s => s.classId));
   const avg = (s) => {
     const vals = Object.values(s.scores || {});
     return vals.length ? Math.round(vals.reduce((a,b) => a+b, 0) / vals.length) : 0;
@@ -716,16 +757,16 @@ async function loadTeacherData() {
 
   document.getElementById('stats-wrap').innerHTML = `
     <div class="stat-row">
-      <div class="stat-box"><div class="stat-num">${students.length}</div><div class="stat-label">Élèves actifs</div></div>
-      <div class="stat-box"><div class="stat-num">${etabs.length}</div><div class="stat-label">Établissements</div></div>
+      <div class="stat-box"><div class="stat-num">${students.length}</div><div class="stat-label">Élèves suivis</div></div>
+      <div class="stat-box"><div class="stat-num">${distinctClassIds.size}</div><div class="stat-label">Classes</div></div>
     </div>
-    <div class="section-title">Élèves</div>
-    ${students.length === 0 ? `<p style="font-size:12.5px; color:var(--schist);">Aucun élève n'est encore inscrit. Ils apparaîtront ici automatiquement.</p>` : ''}
+    <div class="section-title">Mes élèves</div>
+    ${students.length === 0 ? `<p style="font-size:12.5px; color:var(--schist);">Aucun élève dans ce périmètre pour l'instant.</p>` : ''}
     ${students.map(s => `
       <div class="class-row" data-uid="${s.uid}">
         <div style="flex:1; min-width:0;">
           <div class="class-name">${s.name}</div>
-          <div class="class-sub">${s.etab || '—'}</div>
+          <div class="class-sub">${s.etab || '—'} · ${s.className || ''}</div>
         </div>
         <div class="bar-bg"><div class="bar-fill" style="width:${avg(s)}%"></div></div>
         <span style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--schist);">${avg(s)}%</span>
@@ -830,6 +871,71 @@ async function loadEstablishmentsCache(forceReload) {
   return list;
 }
 
+/* ============ CORRESPONDANCE FLOUE (détection de doublons établissements/classes) ============ */
+function normalizeStr(s) {
+  return (s || "").toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+}
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+function findFuzzyMatch(inputName, candidates, getName) {
+  const norm = normalizeStr(inputName);
+  if (!norm) return null;
+  let best = null, bestRatio = 1;
+  for (const c of candidates) {
+    const cn = normalizeStr(getName(c));
+    if (cn === norm) return c; // correspondance exacte
+    const dist = levenshtein(cn, norm);
+    const maxLen = Math.max(cn.length, norm.length) || 1;
+    const ratio = dist / maxLen;
+    if (ratio < bestRatio) { bestRatio = ratio; best = c; }
+  }
+  return (best && bestRatio <= 0.15) ? best : null; // seuil ~85% de similarité
+}
+
+/* Trouve un établissement existant correspondant, ou en crée un nouveau "à vérifier" */
+async function resolveEstablishment(rawName, creatorUid, creatorRole, creatorName) {
+  await loadEstablishmentsCache();
+  const match = findFuzzyMatch(rawName, establishmentsCache, e => e.name);
+  if (match) return { id: match.id, name: match.name };
+
+  const docRef = await db.collection("establishments").add({
+    name: rawName.trim(), city: "", type: "Non précisé",
+    status: "pending", createdBy: creatorUid, createdByRole: creatorRole, createdByName: creatorName,
+    createdAt: new Date().toISOString()
+  });
+  await loadEstablishmentsCache(true);
+  return { id: docRef.id, name: rawName.trim() };
+}
+
+/* Trouve une classe existante dans cet établissement, ou en crée une nouvelle "à vérifier" */
+async function resolveClass(establishmentId, rawClassName, creatorUid, creatorRole, creatorName) {
+  await loadEstablishmentsCache(true);
+  const estab = establishmentsCache.find(e => e.id === establishmentId);
+  const classes = estab ? estab.classes : [];
+  const match = findFuzzyMatch(rawClassName, classes, c => c.name);
+  if (match) return { id: match.id, name: match.name };
+
+  const docRef = await db.collection("establishments").doc(establishmentId).collection("classes").add({
+    name: rawClassName.trim(), level: "",
+    status: "pending", createdBy: creatorUid, createdByRole: creatorRole, createdByName: creatorName,
+    createdAt: new Date().toISOString()
+  });
+  await loadEstablishmentsCache(true);
+  return { id: docRef.id, name: rawClassName.trim() };
+}
+
 /* ============ ADMIN : GESTION DES ÉTABLISSEMENTS ============ */
 async function renderAdminEstablishments() {
   render(`
@@ -856,7 +962,11 @@ async function renderAdminEstablishments() {
     const city = document.getElementById('new-estab-city').value.trim();
     const type = document.getElementById('new-estab-type').value;
     if (!name) return;
-    await db.collection("establishments").add({ name, city, type, createdAt: new Date().toISOString() });
+    await db.collection("establishments").add({
+      name, city, type, status: "verified",
+      createdBy: currentUser.uid, createdByRole: "admin", createdByName: currentProfile.name,
+      createdAt: new Date().toISOString()
+    });
     await loadEstablishmentsCache(true);
     renderAdminEstablishments();
   };
@@ -869,14 +979,32 @@ function renderAdminEstablishmentsList() {
   const wrap = document.getElementById('estab-wrap');
   if (!wrap) return;
   if (establishmentsCache.length === 0) { wrap.innerHTML = `<p style="font-size:12.5px; color:var(--schist);">Aucun établissement pour l'instant.</p>`; return; }
-  wrap.innerHTML = establishmentsCache.map(e => `
+  const pendingCount = establishmentsCache.filter(e => e.status === "pending").length;
+  wrap.innerHTML = `
+    ${pendingCount > 0 ? `<p style="font-size:11.5px; color:var(--laterite); margin-bottom:10px;">⚠ ${pendingCount} établissement(s) à vérifier</p>` : ''}
+    ${establishmentsCache.map(e => `
     <div class="card-row" data-id="${e.id}">
-      <div><div class="chapter-title" style="margin:0;">${e.name}</div><div class="meta">${e.type} · ${e.city || ''} · ${e.classes.length} classe(s)</div></div>
-      <button class="icon-btn del-estab" data-id="${e.id}" title="Supprimer">✕</button>
+      <div>
+        <div class="chapter-title" style="margin:0;">${e.name}${e.status === 'pending' ? ' <span style="color:var(--laterite); font-size:11px; font-weight:600;">À vérifier</span>' : ''}</div>
+        <div class="meta">${e.type} · ${e.city || ''} · ${e.classes.length} classe(s)${e.createdByName ? ' · ajouté par ' + e.createdByName : ''}</div>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        ${e.status === 'pending' ? `<button class="icon-btn validate-estab" data-id="${e.id}" title="Valider" style="color:var(--malachite);">✓</button>` : ''}
+        <button class="icon-btn del-estab" data-id="${e.id}" title="Supprimer">✕</button>
+      </div>
     </div>
-  `).join('');
+  `).join('')}
+  `;
   wrap.querySelectorAll('.card-row').forEach(el => {
-    el.onclick = (ev) => { if (ev.target.classList.contains('del-estab')) return; renderAdminClasses(el.dataset.id); };
+    el.onclick = (ev) => { if (ev.target.classList.contains('del-estab') || ev.target.classList.contains('validate-estab')) return; renderAdminClasses(el.dataset.id); };
+  });
+  wrap.querySelectorAll('.validate-estab').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      await db.collection("establishments").doc(btn.dataset.id).update({ status: "verified" });
+      await loadEstablishmentsCache(true);
+      renderAdminEstablishmentsList();
+    };
   });
   wrap.querySelectorAll('.del-estab').forEach(btn => {
     btn.onclick = async (e) => {
@@ -910,7 +1038,11 @@ async function renderAdminClasses(estabId) {
     const name = document.getElementById('new-class-name').value.trim();
     const level = document.getElementById('new-class-level').value.trim();
     if (!name) return;
-    await db.collection("establishments").doc(estabId).collection("classes").add({ name, level, createdAt: new Date().toISOString() });
+    await db.collection("establishments").doc(estabId).collection("classes").add({
+      name, level, status: "verified",
+      createdBy: currentUser.uid, createdByRole: "admin", createdByName: currentProfile.name,
+      createdAt: new Date().toISOString()
+    });
     await loadEstablishmentsCache(true);
     renderAdminClasses(estabId);
   };
@@ -924,10 +1056,23 @@ function renderAdminClassesList(estabId) {
   if (estab.classes.length === 0) { wrap.innerHTML = `<p style="font-size:12.5px; color:var(--schist);">Aucune classe pour l'instant.</p>`; return; }
   wrap.innerHTML = estab.classes.map(c => `
     <div class="card-row" style="cursor:default;">
-      <div><div class="chapter-title" style="margin:0;">${c.name}</div><div class="meta">${c.level || ''}</div></div>
-      <button class="icon-btn del-class" data-id="${c.id}" title="Supprimer">✕</button>
+      <div>
+        <div class="chapter-title" style="margin:0;">${c.name}${c.status === 'pending' ? ' <span style="color:var(--laterite); font-size:11px; font-weight:600;">À vérifier</span>' : ''}</div>
+        <div class="meta">${c.level || ''}${c.createdByName ? ' · ajouté par ' + c.createdByName : ''}</div>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        ${c.status === 'pending' ? `<button class="icon-btn validate-class" data-id="${c.id}" title="Valider" style="color:var(--malachite);">✓</button>` : ''}
+        <button class="icon-btn del-class" data-id="${c.id}" title="Supprimer">✕</button>
+      </div>
     </div>
   `).join('');
+  wrap.querySelectorAll('.validate-class').forEach(btn => {
+    btn.onclick = async () => {
+      await db.collection("establishments").doc(estabId).collection("classes").doc(btn.dataset.id).update({ status: "verified" });
+      await loadEstablishmentsCache(true);
+      renderAdminClasses(estabId);
+    };
+  });
   wrap.querySelectorAll('.del-class').forEach(btn => {
     btn.onclick = async () => {
       if (!confirm("Supprimer cette classe ?")) return;
